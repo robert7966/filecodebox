@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link rel="icon" href="/assets/logo_small.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+
+        /* 标签页导航 */
+        .tab-navigation {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .tab-button {
+            padding: 15px 30px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-button:hover {
+            background: #f8f9fa;
+        }
+
+        .tab-button.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+            background: #f8f9ff;
+        }
+
+        /* 内容区域 */
+        .tab-content {
+            display: none;
+            padding: 30px;
+            min-height: 400px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 通用表单样式 */
+        .form-group {
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* 文件上传区域 */
+        .file-upload-area {
+            border: 2px dashed #d0d7de;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-upload-area:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .file-upload-area.dragover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .file-upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .file-upload-text {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .file-upload-hint {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-preview {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: left;
+            display: none;
+        }
+
+        .file-preview.show {
+            display: block;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .file-icon {
+            font-size: 24px;
+        }
+
+        .file-details h4 {
+            margin: 0;
+            color: #333;
+        }
+
+        .file-details p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* 音频录制区域 */
+        .record-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            box-shadow: 0 8px 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .record-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(255, 107, 107, 0.4);
+        }
+
+        .record-button.recording {
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            animation: pulse 1.5s infinite;
+        }
+
+        .record-button.stop {
+            background: linear-gradient(135deg, #feca57, #ff9ff3);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .audio-player {
+            width: 100%;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+
+        /* 按钮组 */
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 30px 0;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #666;
+            border: 2px solid #e9ecef;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 过期时间选择 */
+        .expire-group {
+            display: flex;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .expire-group > div {
+            flex: 1;
+        }
+
+        /* 加载状态 */
+        .loading {
+            display: none;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 消息提示 */
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .message.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        /* 结果区域 */
+        .result-section {
+            margin-top: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            display: none;
+        }
+
+        .result-section.show {
+            display: block;
+        }
+
+        .share-code {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 3px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .copy-button {
+            background: #28a745;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 10px 5px;
+        }
+
+        .copy-button:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .tab-navigation {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .tab-button {
+                justify-content: center;
+                padding: 12px 20px;
+            }
+
+            .controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .expire-group {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .expire-group > div {
+                flex: none;
+            }
+        }
+
+        /* 浏览器兼容性警告 */
+        .compatibility-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .compatibility-warning.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="logo">📦</div>
+        <h1>{{name}}</h1>
+        <p class="subtitle">{{description}}</p>
+
+        <!-- 标签页导航 -->
+        <div class="tab-navigation">
+            <button class="tab-button active" data-tab="file">
+                📁 发送文件
+            </button>
+            <button class="tab-button" data-tab="text">
+                📝 发送文本
+            </button>
+            <button class="tab-button" data-tab="audio">
+                🎤 音频录制
+            </button>
+        </div>
+
+        <!-- 发送文件 -->
+        <div class="tab-content active" id="file-tab">
+            <div class="file-upload-area" id="fileUploadArea">
+                <div class="file-upload-icon">📁</div>
+                <div class="file-upload-text">点击选择文件或拖拽到此处</div>
+                <div class="file-upload-hint">支持所有文件格式，最大 {{uploadSize}} MB</div>
+                <input type="file" class="file-input" id="fileInput">
+            </div>
+
+            <div class="file-preview" id="filePreview">
+                <div class="file-info">
+                    <div class="file-icon" id="fileIcon">📄</div>
+                    <div class="file-details">
+                        <h4 id="fileName">文件名</h4>
+                        <p id="fileSize">文件大小</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group expire-group">
+                <div>
+                    <label for="fileExpireValue">有效期</label>
+                    <input type="number" id="fileExpireValue" value="1" min="1">
+                </div>
+                <div>
+                    <label for="fileExpireStyle">单位</label>
+                    <select id="fileExpireStyle">
+                        <option value="minute">分钟</option>
+                        <option value="hour">小时</option>
+                        <option value="day" selected>天</option>
+                        <option value="forever">永久</option>
+                        <option value="count">次数</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-secondary" id="fileResetButton">重新选择</button>
+                <button class="btn btn-primary" id="fileUploadButton" disabled>上传分享</button>
+            </div>
+        </div>
+
+        <!-- 发送文本 -->
+        <div class="tab-content" id="text-tab">
+            <div class="form-group">
+                <label for="textContent">文本内容</label>
+                <textarea id="textContent" placeholder="输入要分享的文本内容..."></textarea>
+            </div>
+
+            <div class="form-group expire-group">
+                <div>
+                    <label for="textExpireValue">有效期</label>
+                    <input type="number" id="textExpireValue" value="1" min="1">
+                </div>
+                <div>
+                    <label for="textExpireStyle">单位</label>
+                    <select id="textExpireStyle">
+                        <option value="minute">分钟</option>
+                        <option value="hour">小时</option>
+                        <option value="day" selected>天</option>
+                        <option value="forever">永久</option>
+                        <option value="count">次数</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-secondary" id="textClearButton">清空内容</button>
+                <button class="btn btn-primary" id="textUploadButton">发送分享</button>
+            </div>
+        </div>
+
+        <!-- 音频录制 -->
+        <div class="tab-content" id="audio-tab">
+            <div class="compatibility-warning" id="compatibilityWarning">
+                <strong>⚠️ 浏览器兼容性提示</strong>：音频录制功能需要在HTTPS环境下运行。
+                <a href="/themes/audio_record.html" style="color: #667eea;">点击这里查看详细说明</a>
+            </div>
+
+            <div class="recorder-section">
+                <button id="recordButton" class="record-button">
+                    <span id="recordIcon">🎤</span>
+                    <span id="recordText">开始录制</span>
+                </button>
+                
+                <div id="timer" class="timer">00:00</div>
+                
+                <audio id="audioPlayer" class="audio-player" controls style="display: none;"></audio>
+            </div>
+
+            <div class="form-group">
+                <label for="audioFileName">录音文件名</label>
+                <input type="text" id="audioFileName" placeholder="我的录音" value="我的录音">
+            </div>
+
+            <div class="form-group expire-group">
+                <div>
+                    <label for="audioExpireValue">有效期</label>
+                    <input type="number" id="audioExpireValue" value="1" min="1">
+                </div>
+                <div>
+                    <label for="audioExpireStyle">单位</label>
+                    <select id="audioExpireStyle">
+                        <option value="minute">分钟</option>
+                        <option value="hour">小时</option>
+                        <option value="day" selected>天</option>
+                        <option value="forever">永久</option>
+                        <option value="count">次数</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="audioResetButton" class="btn btn-secondary" disabled>重新录制</button>
+                <button id="audioUploadButton" class="btn btn-primary" disabled>上传分享</button>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p id="loadingText">正在处理...</p>
+        </div>
+
+        <!-- 消息提示 -->
+        <div id="errorMessage" class="message error"></div>
+        <div id="successMessage" class="message success"></div>
+
+        <!-- 结果区域 -->
+        <div id="resultSection" class="result-section">
+            <h3>🎉 分享成功！</h3>
+            <p>您的分享码：</p>
+            <div id="shareCode" class="share-code"></div>
+            <div style="margin-top: 20px;">
+                <button id="copyCodeButton" class="copy-button">📋 复制分享码</button>
+                <button id="copyLinkButton" class="copy-button">🔗 复制分享链接</button>
+            </div>
+            <p style="margin-top: 20px; font-size: 14px; color: #666;">
+                <span id="resultTypeText">将分享码发送给朋友，他们可以在首页输入分享码来获取内容</span>
+            </p>
+        </div>
+
+        <!-- 底部链接 -->
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <p style="color: #666; font-size: 14px;">
+                <a href="/themes/audio_player.html" style="color: #667eea; text-decoration: none;">🎵 音频播放</a> |
+                <a href="/themes/audio_integration_example.html" style="color: #667eea; text-decoration: none;">📖 功能说明</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // 应用配置
+        let appConfig = {};
+
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadConfig();
+            initTabs();
+            initFileUpload();
+            initTextUpload();
+            initAudioRecording();
+        });
+
+        // 加载应用配置
+        async function loadConfig() {
+            try {
+                const response = await fetch('/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                appConfig = await response.json();
+                
+                // 更新页面信息
+                document.title = appConfig.detail?.name || 'FileCodeBox';
+                document.querySelector('h1').textContent = appConfig.detail?.name || 'FileCodeBox';
+                document.querySelector('.subtitle').textContent = appConfig.detail?.description || '文件快递柜';
+                
+                // 更新上传大小提示
+                const uploadSizeText = `最大 ${Math.round(appConfig.detail?.uploadSize / (1024 * 1024)) || 10} MB`;
+                document.querySelector('.file-upload-hint').innerHTML = 
+                    `支持所有文件格式，${uploadSizeText}`;
+            } catch (error) {
+                console.error('Failed to load config:', error);
+            }
+        }
+
+        // 标签页切换
+        function initTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetTab = button.dataset.tab;
+                    
+                    // 更新按钮状态
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    
+                    // 更新内容显示
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    document.getElementById(`${targetTab}-tab`).classList.add('active');
+                    
+                    // 音频录制标签页特殊处理
+                    if (targetTab === 'audio') {
+                        checkAudioCompatibility();
+                    }
+                });
+            });
+        }
+
+        // 文件上传功能
+        function initFileUpload() {
+            const uploadArea = document.getElementById('fileUploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const filePreview = document.getElementById('filePreview');
+            const uploadButton = document.getElementById('fileUploadButton');
+            const resetButton = document.getElementById('fileResetButton');
+
+            let selectedFile = null;
+
+            // 点击上传区域
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // 文件选择
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // 拖拽上传
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    handleFileSelect({ target: { files } });
+                }
+            });
+
+            // 重置按钮
+            resetButton.addEventListener('click', () => {
+                selectedFile = null;
+                fileInput.value = '';
+                filePreview.classList.remove('show');
+                uploadButton.disabled = true;
+            });
+
+            // 上传按钮
+            uploadButton.addEventListener('click', uploadFile);
+
+            function handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                selectedFile = file;
+                
+                // 显示文件预览
+                const fileName = document.getElementById('fileName');
+                const fileSize = document.getElementById('fileSize');
+                const fileIcon = document.getElementById('fileIcon');
+
+                fileName.textContent = file.name;
+                fileSize.textContent = formatFileSize(file.size);
+                fileIcon.textContent = getFileIcon(file.type);
+
+                filePreview.classList.add('show');
+                uploadButton.disabled = false;
+            }
+
+            async function uploadFile() {
+                if (!selectedFile) return;
+
+                const expireValue = parseInt(document.getElementById('fileExpireValue').value);
+                const expireStyle = document.getElementById('fileExpireStyle').value;
+
+                try {
+                    showLoading('正在上传文件...');
+
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+                    formData.append('expire_value', expireValue);
+                    formData.append('expire_style', expireStyle);
+
+                    const response = await fetch('/share/file/', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.detail) {
+                        showSuccess('文件上传成功！');
+                        showResult(result.detail.code, 'file', selectedFile.name);
+                    } else {
+                        throw new Error(result.detail || '上传失败');
+                    }
+                } catch (error) {
+                    showError(`上传失败: ${error.message}`);
+                } finally {
+                    hideLoading();
+                }
+            }
+        }
+
+        // 文本发送功能
+        function initTextUpload() {
+            const textContent = document.getElementById('textContent');
+            const uploadButton = document.getElementById('textUploadButton');
+            const clearButton = document.getElementById('textClearButton');
+
+            clearButton.addEventListener('click', () => {
+                textContent.value = '';
+                textContent.focus();
+            });
+
+            uploadButton.addEventListener('click', uploadText);
+
+            async function uploadText() {
+                const text = textContent.value.trim();
+                if (!text) {
+                    showError('请输入要分享的文本内容');
+                    return;
+                }
+
+                const expireValue = parseInt(document.getElementById('textExpireValue').value);
+                const expireStyle = document.getElementById('textExpireStyle').value;
+
+                try {
+                    showLoading('正在发送文本...');
+
+                    const formData = new FormData();
+                    formData.append('text', text);
+                    formData.append('expire_value', expireValue);
+                    formData.append('expire_style', expireStyle);
+
+                    const response = await fetch('/share/text/', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.detail) {
+                        showSuccess('文本发送成功！');
+                        showResult(result.detail.code, 'text', '文本内容');
+                    } else {
+                        throw new Error(result.detail || '发送失败');
+                    }
+                } catch (error) {
+                    showError(`发送失败: ${error.message}`);
+                } finally {
+                    hideLoading();
+                }
+            }
+        }
+
+        // 音频录制功能
+        function initAudioRecording() {
+            // 检查浏览器兼容性
+            function checkAudioCompatibility() {
+                const warning = document.getElementById('compatibilityWarning');
+                
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+                    warning.classList.add('show');
+                    return false;
+                }
+
+                const isSecureContext = window.isSecureContext || 
+                                      location.hostname === 'localhost' || 
+                                      location.hostname === '127.0.0.1' ||
+                                      location.protocol === 'https:';
+                
+                if (!isSecureContext) {
+                    warning.classList.add('show');
+                    return false;
+                }
+
+                warning.classList.remove('show');
+                return true;
+            }
+
+            window.checkAudioCompatibility = checkAudioCompatibility;
+
+            // 如果不支持，显示警告但仍然初始化（用户可能在HTTPS环境下）
+            const recorder = new AudioRecorder();
+        }
+
+        // 音频录制器类
+        class AudioRecorder {
+            constructor() {
+                this.mediaRecorder = null;
+                this.audioChunks = [];
+                this.isRecording = false;
+                this.audioBlob = null;
+                this.startTime = null;
+                this.timerInterval = null;
+                
+                this.initElements();
+                this.bindEvents();
+            }
+
+            initElements() {
+                this.recordButton = document.getElementById('recordButton');
+                this.recordIcon = document.getElementById('recordIcon');
+                this.recordText = document.getElementById('recordText');
+                this.timer = document.getElementById('timer');
+                this.audioPlayer = document.getElementById('audioPlayer');
+                this.resetButton = document.getElementById('audioResetButton');
+                this.uploadButton = document.getElementById('audioUploadButton');
+                this.fileName = document.getElementById('audioFileName');
+                this.expireValue = document.getElementById('audioExpireValue');
+                this.expireStyle = document.getElementById('audioExpireStyle');
+            }
+
+            bindEvents() {
+                this.recordButton.addEventListener('click', () => this.toggleRecording());
+                this.resetButton.addEventListener('click', () => this.resetRecording());
+                this.uploadButton.addEventListener('click', () => this.uploadAudio());
+            }
+
+            async toggleRecording() {
+                if (!this.isRecording) {
+                    await this.startRecording();
+                } else {
+                    this.stopRecording();
+                }
+            }
+
+            async startRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            sampleRate: 44100
+                        } 
+                    });
+                    
+                    this.mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'audio/webm;codecs=opus'
+                    });
+                    
+                    this.audioChunks = [];
+                    
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            this.audioChunks.push(event.data);
+                        }
+                    };
+                    
+                    this.mediaRecorder.onstop = () => {
+                        this.audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                        this.audioPlayer.src = URL.createObjectURL(this.audioBlob);
+                        this.audioPlayer.style.display = 'block';
+                        this.resetButton.disabled = false;
+                        this.uploadButton.disabled = false;
+                        
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    
+                    this.mediaRecorder.start(1000);
+                    this.isRecording = true;
+                    this.startTime = Date.now();
+                    
+                    this.updateRecordingUI();
+                    this.startTimer();
+                    
+                } catch (error) {
+                    console.error('录音启动失败:', error);
+                    this.handleRecordingError(error);
+                }
+            }
+
+            stopRecording() {
+                if (this.mediaRecorder && this.isRecording) {
+                    this.mediaRecorder.stop();
+                    this.isRecording = false;
+                    this.stopTimer();
+                    this.updateStoppedUI();
+                }
+            }
+
+            resetRecording() {
+                if (this.isRecording) {
+                    this.stopRecording();
+                }
+                
+                this.audioBlob = null;
+                this.audioChunks = [];
+                this.audioPlayer.style.display = 'none';
+                this.audioPlayer.src = '';
+                this.resetButton.disabled = true;
+                this.uploadButton.disabled = true;
+                this.timer.textContent = '00:00';
+                
+                this.recordButton.className = 'record-button';
+                this.recordIcon.textContent = '🎤';
+                this.recordText.textContent = '开始录制';
+            }
+
+            updateRecordingUI() {
+                this.recordButton.className = 'record-button recording';
+                this.recordIcon.textContent = '⏹️';
+                this.recordText.textContent = '停止录制';
+            }
+
+            updateStoppedUI() {
+                this.recordButton.className = 'record-button stop';
+                this.recordIcon.textContent = '🎤';
+                this.recordText.textContent = '重新开始';
+            }
+
+            startTimer() {
+                this.timerInterval = setInterval(() => {
+                    if (this.startTime) {
+                        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                        const minutes = Math.floor(elapsed / 60);
+                        const seconds = elapsed % 60;
+                        this.timer.textContent = 
+                            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                }, 1000);
+            }
+
+            stopTimer() {
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+            }
+
+            getDuration() {
+                if (this.startTime && this.timer.textContent !== '00:00') {
+                    const [minutes, seconds] = this.timer.textContent.split(':').map(Number);
+                    return minutes * 60 + seconds;
+                }
+                return 0;
+            }
+
+            handleRecordingError(error) {
+                let errorMessage = '录音启动失败';
+                
+                switch (error.name) {
+                    case 'NotAllowedError':
+                    case 'PermissionDeniedError':
+                        errorMessage = '麦克风权限被拒绝，请允许麦克风访问权限';
+                        break;
+                    case 'NotFoundError':
+                    case 'DevicesNotFoundError':
+                        errorMessage = '未找到麦克风设备';
+                        break;
+                    default:
+                        errorMessage = `录音功能启动失败: ${error.message}`;
+                }
+
+                showError(errorMessage);
+            }
+
+            async uploadAudio() {
+                if (!this.audioBlob) {
+                    showError('请先录制音频');
+                    return;
+                }
+
+                const fileName = this.fileName.value.trim() || '我的录音';
+                const duration = this.getDuration();
+                const expireValue = parseInt(this.expireValue.value) || 1;
+                const expireStyle = this.expireStyle.value;
+
+                try {
+                    showLoading('正在上传音频文件...');
+
+                    const formData = new FormData();
+                    formData.append('audio_file', this.audioBlob, `${fileName}.webm`);
+                    formData.append('name', fileName);
+                    formData.append('duration', duration.toString());
+                    formData.append('format', 'webm');
+                    formData.append('expire_value', expireValue.toString());
+                    formData.append('expire_style', expireStyle);
+
+                    const response = await fetch('/share/audio/', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.detail) {
+                        showSuccess(`音频上传成功！时长: ${duration}秒`);
+                        showResult(result.detail.code, 'audio', `${fileName}.webm`);
+                    } else {
+                        throw new Error(result.detail || '上传失败');
+                    }
+
+                } catch (error) {
+                    showError(`上传失败: ${error.message}`);
+                } finally {
+                    hideLoading();
+                }
+            }
+        }
+
+        // 工具函数
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function getFileIcon(mimeType) {
+            if (mimeType.startsWith('image/')) return '🖼️';
+            if (mimeType.startsWith('video/')) return '🎥';
+            if (mimeType.startsWith('audio/')) return '🎵';
+            if (mimeType.includes('pdf')) return '📄';
+            if (mimeType.includes('word')) return '📝';
+            if (mimeType.includes('excel')) return '📊';
+            if (mimeType.includes('zip') || mimeType.includes('rar')) return '📦';
+            return '📄';
+        }
+
+        function showLoading(text = '正在处理...') {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.classList.add('show');
+            setTimeout(() => errorElement.classList.remove('show'), 5000);
+        }
+
+        function showSuccess(message) {
+            const successElement = document.getElementById('successMessage');
+            successElement.textContent = message;
+            successElement.classList.add('show');
+            setTimeout(() => successElement.classList.remove('show'), 3000);
+        }
+
+        function showResult(code, type, fileName) {
+            const resultSection = document.getElementById('resultSection');
+            const shareCode = document.getElementById('shareCode');
+            const resultTypeText = document.getElementById('resultTypeText');
+            
+            shareCode.textContent = code;
+            
+            let typeText = '';
+            switch (type) {
+                case 'file':
+                    typeText = '将分享码发送给朋友，他们可以在首页输入分享码来下载文件';
+                    break;
+                case 'text':
+                    typeText = '将分享码发送给朋友，他们可以在首页输入分享码来查看文本';
+                    break;
+                case 'audio':
+                    typeText = '将分享码发送给朋友，他们可以在首页输入分享码来播放音频';
+                    break;
+            }
+            resultTypeText.textContent = typeText;
+            
+            resultSection.classList.add('show');
+            
+            // 绑定复制按钮事件
+            document.getElementById('copyCodeButton').onclick = () => copyToClipboard(code);
+            document.getElementById('copyLinkButton').onclick = () => {
+                const link = type === 'audio' 
+                    ? `${window.location.origin}/themes/audio_player.html?code=${code}`
+                    : `${window.location.origin}/?code=${code}`;
+                copyToClipboard(link);
+            };
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showSuccess('已复制到剪贴板！');
+            }).catch(() => {
+                // 降级处理
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showSuccess('已复制到剪贴板！');
+            });
+        }
+    </script>
+</body>
+</html> 

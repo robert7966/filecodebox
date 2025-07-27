@@ -34,11 +34,6 @@ async def lifespan(app: FastAPI):
 
     # 加载配置
     await load_config()
-    app.mount(
-        "/assets",
-        StaticFiles(directory=f"./{settings.themesSelect}/assets"),
-        name="assets",
-    )
 
     # 启动后台任务
     task = asyncio.create_task(delete_expire_files())
@@ -72,6 +67,13 @@ async def load_config():
 
 app = FastAPI(lifespan=lifespan)
 
+# 挂载静态文件 - 必须在应用创建后立即配置
+app.mount(
+    "/assets",
+    StaticFiles(directory="themes/2024/assets"),
+    name="assets",
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -104,6 +106,22 @@ app.include_router(admin_api)
 @app.exception_handler(404)
 @app.get("/")
 async def index(request=None, exc=None):
+    # 检查是否存在新的集成主页面
+    integrated_page = BASE_DIR / "themes/index_new.html"
+    if integrated_page.exists():
+        return HTMLResponse(
+            content=open(integrated_page, "r", encoding="utf-8")
+            .read()
+            .replace("{{title}}", str(settings.name))
+            .replace("{{name}}", str(settings.name))
+            .replace("{{description}}", str(settings.description))
+            .replace("{{keywords}}", str(settings.keywords))
+            .replace("{{uploadSize}}", str(int(settings.uploadSize / (1024 * 1024)))),
+            media_type="text/html",
+            headers={"Cache-Control": "no-cache"},
+        )
+    
+    # 默认使用原来的主题页面
     return HTMLResponse(
         content=open(
             BASE_DIR / f"{settings.themesSelect}/index.html", "r", encoding="utf-8"
@@ -113,7 +131,6 @@ async def index(request=None, exc=None):
         .replace("{{description}}", str(settings.description))
         .replace("{{keywords}}", str(settings.keywords))
         .replace("{{opacity}}", str(settings.opacity))
-        .replace('"/assets/', '"assets/')
         .replace("{{background}}", str(settings.background)),
         media_type="text/html",
         headers={"Cache-Control": "no-cache"},
@@ -139,6 +156,23 @@ async def audio_player_page():
         content=open(
             BASE_DIR / "themes/audio_player.html", "r", encoding="utf-8"
         ).read(),
+        media_type="text/html",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/themes/send_integrated.html")
+async def send_integrated_page():
+    """集成的发送页面 - 包含文件、文本、音频录制"""
+    return HTMLResponse(
+        content=open(
+            BASE_DIR / "themes/send_integrated.html", "r", encoding="utf-8"
+        )
+        .read()
+        .replace("{{title}}", str(settings.name))
+        .replace("{{name}}", str(settings.name))
+        .replace("{{description}}", str(settings.description))
+        .replace("{{uploadSize}}", str(settings.uploadSize)),
         media_type="text/html",
         headers={"Cache-Control": "no-cache"},
     )

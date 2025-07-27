@@ -25,12 +25,12 @@
         </h2>
         <form @submit.prevent="handleSubmit" class="space-y-8">
           <!-- 发送类型选择 -->
-          <div class="flex justify-center space-x-4 mb-6">
+          <div class="flex justify-center space-x-2 mb-6">
             <button
               type="button"
               @click="sendType = 'file'"
               :class="[
-                'px-4 py-2 rounded-lg',
+                'px-3 py-2 rounded-lg text-sm',
                 sendType === 'file' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300'
               ]"
             >
@@ -40,11 +40,21 @@
               type="button"
               @click="sendType = 'text'"
               :class="[
-                'px-4 py-2 rounded-lg',
+                'px-3 py-2 rounded-lg text-sm',
                 sendType === 'text' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300'
               ]"
             >
               发送文本
+            </button>
+            <button
+              type="button"
+              @click="sendType = 'audio'"
+              :class="[
+                'px-3 py-2 rounded-lg text-sm',
+                sendType === 'audio' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300'
+              ]"
+            >
+              音频录制
             </button>
             <!-- <button
               type="button"
@@ -107,9 +117,9 @@
                 </p>
               </div>
             </div>
-            <div v-else key="text" class="grid grid-cols-1 gap-8">
+            <div v-else-if="sendType === 'text'" key="text" class="grid grid-cols-1 gap-8">
               <!-- 文本输入区域 -->
-              <div v-if="sendType === 'text'" class="flex flex-col">
+              <div class="flex flex-col">
                 <textarea
                   id="text-content"
                   v-model="textContent"
@@ -124,7 +134,90 @@
                 ></textarea>
               </div>
             </div>
+            <div v-else-if="sendType === 'audio'" key="audio" class="grid grid-cols-1 gap-8">
+              <!-- 音频录制区域 -->
+              <div class="text-center">
+                <!-- 浏览器兼容性检查 -->
+                <div v-if="!isAudioSupported" class="mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded-lg">
+                  <p class="text-yellow-800 text-sm">
+                    ⚠️ 音频录制功能需要在HTTPS环境下运行，或在支持的浏览器中使用。
+                  </p>
+                </div>
+
+                <!-- 录制按钮 -->
+                <button
+                  type="button"
+                  @click="toggleRecording"
+                  :disabled="!isAudioSupported"
+                  class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg hover:shadow-xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="[
+                    isRecording 
+                      ? 'bg-gradient-to-br from-green-500 to-green-600 animate-pulse' 
+                      : 'bg-gradient-to-br from-red-500 to-red-600'
+                  ]"
+                >
+                  <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path 
+                      v-if="!isRecording"
+                      stroke-linecap="round" 
+                      stroke-linejoin="round" 
+                      stroke-width="2" 
+                      d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                    />
+                    <path 
+                      v-else
+                      stroke-linecap="round" 
+                      stroke-linejoin="round" 
+                      stroke-width="2" 
+                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z M9 10h6v4H9z"
+                    />
+                  </svg>
+                </button>
+
+                <!-- 计时器 -->
+                <div class="text-2xl font-mono font-bold text-gray-900 mb-4">{{ formatTime(recordingTime) }}</div>
+
+                <!-- 音频播放器 -->
+                <audio 
+                  v-if="audioBlob" 
+                  :src="audioBlobUrl" 
+                  controls 
+                  class="w-full rounded-lg mb-4"
+                ></audio>
+
+                <!-- 音频文件名输入 -->
+                <div class="mt-6">
+                  <label :class="['block text-sm font-medium mb-2', isDarkMode ? 'text-gray-300' : 'text-gray-700']">
+                    录音文件名
+                  </label>
+                  <input
+                    v-model="audioFileName"
+                    type="text"
+                    placeholder="我的录音"
+                    :class="[
+                      'w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300',
+                      isDarkMode
+                        ? 'bg-gray-800 bg-opacity-50 text-white border border-gray-600'
+                        : 'bg-white text-gray-900 border border-gray-300'
+                    ]"
+                  />
+                </div>
+
+                <!-- 录制控制按钮 -->
+                <div class="flex gap-3 mt-6" v-if="audioBlob">
+                  <button
+                    type="button"
+                    @click="resetRecording"
+                    class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    :class="[isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : '']"
+                  >
+                    重新录制
+                  </button>
+                </div>
+              </div>
+            </div>
           </transition>
+          
           <!-- 过期方式选择 -->
           <div class="flex flex-col space-y-3">
             <label :class="['text-sm font-medium', isDarkMode ? 'text-gray-300' : 'text-gray-700']">
@@ -247,7 +340,8 @@
           <!-- 提交按钮 -->
           <button
             type="submit"
-            class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group"
+            :disabled="!canSubmit"
+            class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             <span
               class="absolute top-0 left-0 w-full h-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
@@ -298,102 +392,112 @@
           class="flex justify-between items-center p-6 border-b"
           :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']"
         >
-          <h3 class="text-2xl font-bold" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
+          <h3
+            class="text-xl font-semibold"
+            :class="[isDarkMode ? 'text-white' : 'text-gray-900']"
+          >
             发件记录
           </h3>
           <button
             @click="toggleDrawer"
-            class="hover:text-white transition duration-300"
-            :class="[isDarkMode ? 'text-gray-400' : 'text-gray-800']"
+            class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
-            <XIcon class="w-6 h-6" />
+            <XIcon
+              class="w-6 h-6"
+              :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+            />
           </button>
         </div>
-        <div class="flex-grow overflow-y-auto p-6">
+
+        <div class="flex-1 overflow-y-auto p-6">
           <transition-group name="list" tag="div" class="space-y-4">
             <div
               v-for="record in sendRecords"
               :key="record.id"
-              class="bg-opacity-50 rounded-lg p-4 flex items-center shadow-md hover:shadow-lg transition duration-300 transform hover:scale-102"
-              :class="[isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-white']"
+              class="rounded-xl p-4 border transition-all duration-300 hover:shadow-md"
+              :class="[
+                isDarkMode
+                  ? 'bg-gray-800 bg-opacity-50 border-gray-700 hover:border-gray-600'
+                  : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+              ]"
             >
-              <div class="flex-shrink-0 mr-4">
-                <FileIcon
-                  class="w-10 h-10"
-                  :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']"
-                />
-              </div>
-              <div class="flex-grow min-w-0 mr-4">
-                <p
-                  class="font-medium text-lg truncate"
-                  :class="[isDarkMode ? 'text-white' : 'text-gray-800']"
-                >
-                  {{ record.filename ? record.filename : 'Text' }}
-                </p>
-                <p
-                  class="text-sm truncate"
-                  :class="[isDarkMode ? 'text-gray-400' : 'text-gray-600']"
-                >
-                  {{ record.date }} · {{ record.size }}
-                </p>
-              </div>
-              <div class="flex-shrink-0 flex space-x-2">
-                <button
-                  @click="copyRetrieveLink(record.retrieveCode)"
-                  class="p-2 rounded-full hover:bg-opacity-20 transition duration-300"
-                  :class="[
-                    isDarkMode
-                      ? 'hover:bg-blue-400 text-blue-400'
-                      : 'hover:bg-blue-100 text-blue-600'
-                  ]"
-                >
-                  <ClipboardCopyIcon class="w-5 h-5" />
-                </button>
-                <button
-                  @click="viewDetails(record)"
-                  class="p-2 rounded-full hover:bg-opacity-20 transition duration-300"
-                  :class="[
-                    isDarkMode
-                      ? 'hover:bg-green-400 text-green-400'
-                      : 'hover:bg-green-100 text-green-600'
-                  ]"
-                >
-                  <EyeIcon class="w-5 h-5" />
-                </button>
-                <button
-                  @click="deleteRecord(record.id)"
-                  class="p-2 rounded-full hover:bg-opacity-20 transition duration-300"
-                  :class="[
-                    isDarkMode ? 'hover:bg-red-400 text-red-400' : 'hover:bg-red-100 text-red-600'
-                  ]"
-                >
-                  <TrashIcon class="w-5 h-5" />
-                </button>
+              <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                  <h4
+                    class="font-medium text-sm truncate"
+                    :class="[isDarkMode ? 'text-white' : 'text-gray-900']"
+                  >
+                    {{ record.filename }}
+                  </h4>
+                  <p
+                    class="text-xs mt-1 truncate"
+                    :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+                  >
+                    {{ record.size }} · {{ record.date }}
+                  </p>
+                  <p
+                    class="text-xs mt-1 truncate"
+                    :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+                  >
+                    {{ record.expiration }}
+                  </p>
+                </div>
+                <div class="flex space-x-2 ml-3">
+                  <button
+                    @click="viewDetails(record)"
+                    class="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <EyeIcon
+                      class="w-4 h-4"
+                      :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+                    />
+                  </button>
+                  <button
+                    @click="deleteRecord(record.id)"
+                    class="p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                  >
+                    <TrashIcon class="w-4 h-4 text-red-500" />
+                  </button>
+                </div>
               </div>
             </div>
           </transition-group>
+
+          <div
+            v-if="sendRecords.length === 0"
+            class="text-center py-12"
+          >
+            <FileIcon
+              class="w-16 h-16 mx-auto mb-4"
+              :class="[isDarkMode ? 'text-gray-600' : 'text-gray-300']"
+            />
+            <p :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">
+              暂无发件记录
+            </p>
+          </div>
         </div>
       </div>
     </transition>
 
-    <!-- 记录详情弹窗 -->
+    <!-- 文件详情弹窗 -->
     <transition name="fade">
       <div
         v-if="selectedRecord"
-        class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto"
+        class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-md flex items-center justify-center z-50 p-4"
+        @click.self="selectedRecord = null"
       >
         <div
-          class="w-full max-w-2xl rounded-2xl shadow-2xl transform transition-all duration-300 ease-out overflow-hidden"
-          :class="[isDarkMode ? 'bg-gray-900 bg-opacity-70' : 'bg-white bg-opacity-95']"
+          class="w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300"
+          :class="[isDarkMode ? 'bg-gray-900' : 'bg-white']"
         >
-          <!-- 顶部标题栏 -->
+          <!-- 头部 -->
           <div
-            class="px-4 sm:px-6 py-3 sm:py-4 border-b"
-            :class="[isDarkMode ? 'border-gray-800' : 'border-gray-100']"
+            class="px-4 sm:px-6 py-3 sm:py-4 border-b flex justify-between items-center"
+            :class="[isDarkMode ? 'border-gray-800 bg-gray-800' : 'border-gray-100 bg-gray-50']"
           >
-            <div class="flex items-center justify-between">
+            <div class="min-w-0 flex-1">
               <h3
-                class="text-lg sm:text-xl font-semibold"
+                class="text-base sm:text-lg font-semibold truncate"
                 :class="[isDarkMode ? 'text-white' : 'text-gray-900']"
               >
                 文件详情
@@ -566,7 +670,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, inject, onMounted, computed } from 'vue'
+import { ref, inject, onMounted, computed, onUnmounted } from 'vue'
 import {
   UploadCloudIcon,
   SendIcon,
@@ -603,12 +707,162 @@ const expirationValue = ref('1')
 const uploadProgress = ref(0)
 const showDrawer = ref(false)
 const selectedRecord = ref<any>(null)
+
+// 音频录制相关的响应式数据
+const isRecording = ref(false)
+const recordingTime = ref(0)
+const audioBlob = ref<Blob | null>(null)
+const audioBlobUrl = ref<string>('')
+const audioFileName = ref('我的录音')
+const mediaRecorder = ref<MediaRecorder | null>(null)
+const recordingStartTime = ref<number>(0)
+const recordingTimer = ref<number | null>(null)
+const audioChunks = ref<Blob[]>([])
+
+// 音频支持检查
+const isAudioSupported = computed(() => {
+  if (typeof window === 'undefined') return false
+  
+  const hasMediaDevices = !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function')
+  const hasMediaRecorder = typeof window.MediaRecorder !== 'undefined'
+  const isSecureContext = window.isSecureContext || 
+                          location.hostname === 'localhost' || 
+                          location.hostname === '127.0.0.1' ||
+                          location.protocol === 'https:'
+  
+  return hasMediaDevices && hasMediaRecorder && isSecureContext
+})
+
+// 提交按钮状态
+const canSubmit = computed(() => {
+  if (sendType.value === 'file') {
+    return selectedFile.value !== null
+  } else if (sendType.value === 'text') {
+    return textContent.value.trim() !== ''
+  } else if (sendType.value === 'audio') {
+    return audioBlob.value !== null
+  }
+  return false
+})
+
 import { useAlertStore } from '@/stores/alertStore'
 
 const alertStore = useAlertStore()
 const sendRecords = computed(() => fileDataStore.shareData)
 
 const fileHash = ref('')
+
+// 音频录制相关方法
+const toggleRecording = async () => {
+  if (!isAudioSupported.value) {
+    alertStore.showAlert('您的浏览器不支持音频录制功能', 'error')
+    return
+  }
+
+  if (isRecording.value) {
+    stopRecording()
+  } else {
+    await startRecording()
+  }
+}
+
+const startRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 44100
+      } 
+    })
+    
+    mediaRecorder.value = new MediaRecorder(stream, {
+      mimeType: 'audio/webm;codecs=opus'
+    })
+    
+    audioChunks.value = []
+    
+    mediaRecorder.value.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.value.push(event.data)
+      }
+    }
+    
+    mediaRecorder.value.onstop = () => {
+      audioBlob.value = new Blob(audioChunks.value, { type: 'audio/webm' })
+      audioBlobUrl.value = URL.createObjectURL(audioBlob.value)
+      
+      // 停止所有音频轨道
+      stream.getTracks().forEach(track => track.stop())
+    }
+    
+    mediaRecorder.value.start(1000)
+    isRecording.value = true
+    recordingStartTime.value = Date.now()
+    
+    // 开始计时
+    recordingTimer.value = setInterval(() => {
+      recordingTime.value = Math.floor((Date.now() - recordingStartTime.value) / 1000)
+    }, 1000)
+    
+  } catch (error: any) {
+    console.error('录音启动失败:', error)
+    let errorMessage = '录音启动失败'
+    
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+      errorMessage = '麦克风权限被拒绝，请允许麦克风访问权限'
+    } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+      errorMessage = '未找到麦克风设备'
+    }
+    
+    alertStore.showAlert(errorMessage, 'error')
+  }
+}
+
+const stopRecording = () => {
+  if (mediaRecorder.value && isRecording.value) {
+    mediaRecorder.value.stop()
+    isRecording.value = false
+    
+    if (recordingTimer.value) {
+      clearInterval(recordingTimer.value)
+      recordingTimer.value = null
+    }
+  }
+}
+
+const resetRecording = () => {
+  if (isRecording.value) {
+    stopRecording()
+  }
+  
+  audioBlob.value = null
+  audioBlobUrl.value = ''
+  audioChunks.value = []
+  recordingTime.value = 0
+  recordingStartTime.value = 0
+  
+  if (recordingTimer.value) {
+    clearInterval(recordingTimer.value)
+    recordingTimer.value = null
+  }
+}
+
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+}
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  if (recordingTimer.value) {
+    clearInterval(recordingTimer.value)
+  }
+  if (audioBlobUrl.value) {
+    URL.revokeObjectURL(audioBlobUrl.value)
+  }
+})
 
 const triggerFileUpload = () => {
   fileInput.value?.click()
@@ -638,7 +892,7 @@ const handlePaste = async (event: ClipboardEvent) => {
   const items = event.clipboardData?.items
   if (!items) return
 
-  for (const item of items) {
+  for (const item of Array.from(items)) {
     if (item.kind === 'file') {
       const file = item.getAsFile()
       if (file) {
@@ -835,6 +1089,7 @@ const handleChunkUpload = async (file: File) => {
     throw error
   }
 }
+
 const handleDefaultFileUpload = async (file: File) => {
   const formData = new FormData()
   // 添加上传进度监听
@@ -853,6 +1108,41 @@ const handleDefaultFileUpload = async (file: File) => {
   const response: any = await api.post('share/file/', formData, config)
   return response
 }
+
+const handleAudioUpload = async () => {
+  if (!audioBlob.value) {
+    throw new Error('音频文件为空')
+  }
+
+  const fileName = audioFileName.value.trim() || '我的录音'
+  const duration = recordingTime.value
+
+  try {
+    const formData = new FormData()
+    formData.append('audio_file', audioBlob.value, `${fileName}.webm`)
+    formData.append('name', fileName)
+    formData.append('duration', duration.toString())
+    formData.append('format', 'webm')
+    formData.append('expire_value', expirationValue.value)
+    formData.append('expire_style', expirationMethod.value)
+
+    const response: any = await api.post('share/audio/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      onUploadProgress: (progressEvent: any) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+        uploadProgress.value = percentCompleted
+      }
+    })
+
+    return response
+  } catch (error: any) {
+    console.error('音频上传失败:', error)
+    throw error
+  }
+}
+
 const checkOpenUpload = () => {
   if (config.openUpload === 0 && localStorage.getItem('token') === null) {
     alertStore.showAlert('游客上传功能已关闭', 'error')
@@ -896,10 +1186,11 @@ const checkExpirationTime = (method: string, value: string): boolean => {
 
 const checkUpload = () => {
   if (!checkOpenUpload()) return false
-  if (!checkFileSize(selectedFile.value!)) return false
+  if (sendType.value === 'file' && selectedFile.value && !checkFileSize(selectedFile.value)) return false
   if (!checkExpirationTime(expirationMethod.value, expirationValue.value)) return false
   return true
 }
+
 const handleSubmit = async () => {
   if (sendType.value === 'file' && !selectedFile.value) {
     alertStore.showAlert('请选择要上传的文件', 'error')
@@ -907,6 +1198,10 @@ const handleSubmit = async () => {
   }
   if (sendType.value === 'text' && !textContent.value.trim()) {
     alertStore.showAlert('请输入要发送的文本', 'error')
+    return
+  }
+  if (sendType.value === 'audio' && !audioBlob.value) {
+    alertStore.showAlert('请先录制音频', 'error')
     return
   }
   if (expirationMethod.value !== 'forever' && !expirationValue.value) {
@@ -931,7 +1226,7 @@ const handleSubmit = async () => {
       } else {
         response = await handleDefaultFileUpload(selectedFile.value!)
       }
-    } else {
+    } else if (sendType.value === 'text') {
       // 文本上传保持不变
       const formData = new FormData()
       formData.append('text', textContent.value)
@@ -942,20 +1237,37 @@ const handleSubmit = async () => {
           'Content-Type': 'multipart/form-data'
         }
       })
+    } else if (sendType.value === 'audio') {
+      // 音频上传
+      response = await handleAudioUpload()
     }
 
     if (response && response.code === 200) {
       const retrieveCode = response.detail.code
       const fileName = response.detail.name
+      
+      // 根据不同类型计算大小和类型标识
+      let size = ''
+      let typeIndicator = ''
+      
+      if (sendType.value === 'text') {
+        size = `${(textContent.value.length / 1024).toFixed(2)} KB`
+        typeIndicator = '📝'
+      } else if (sendType.value === 'audio') {
+        const audioSize = audioBlob.value ? audioBlob.value.size : 0
+        size = `${(audioSize / 1024).toFixed(2)} KB`
+        typeIndicator = '🎵'
+      } else {
+        size = `${(selectedFile.value!.size / (1024 * 1024)).toFixed(1)} MB`
+        typeIndicator = '📁'
+      }
+      
       // 添加新的发送记录
       const newRecord = {
         id: Date.now(),
-        filename: fileName,
+        filename: `${typeIndicator} ${fileName}`,
         date: new Date().toISOString().split('T')[0],
-        size:
-          sendType.value === 'text'
-            ? `${(textContent.value.length / 1024).toFixed(2)} KB`
-            : `${(selectedFile.value!.size / (1024 * 1024)).toFixed(1)} MB`,
+        size: size,
         expiration:
           expirationMethod.value === 'forever'
             ? '永久'
@@ -965,11 +1277,20 @@ const handleSubmit = async () => {
       fileDataStore.addShareData(newRecord)
 
       // 显示发送成功消息
-      alertStore.showAlert(`文件发送成功！取件码：${retrieveCode}`, 'success')
+      let successMessage = ''
+      if (sendType.value === 'audio') {
+        successMessage = `音频发送成功！时长: ${formatTime(recordingTime.value)}，取件码：${retrieveCode}`
+      } else {
+        successMessage = `${sendType.value === 'file' ? '文件' : '文本'}发送成功！取件码：${retrieveCode}`
+      }
+      alertStore.showAlert(successMessage, 'success')
+      
       // 重置表单 - 只重置文件和文本内容,保留过期信息
       selectedFile.value = null
       textContent.value = ''
+      resetRecording()
       uploadProgress.value = 0
+      
       // 显示详情
       selectedRecord.value = newRecord
       // 自动复制取件码链接

@@ -1,3 +1,9 @@
 *.js linguist-language=python
 *.css linguist-language=python
 *.html linguist-language=python
+* text=auto
+*.html text eol=lf
+*.js text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+

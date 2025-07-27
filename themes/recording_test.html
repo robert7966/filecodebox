@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>录音功能兼容性测试</title>
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .test-item {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .test-item.pass {
+            border-color: #4CAF50;
+            background-color: #f8fff8;
+        }
+
+        .test-item.fail {
+            border-color: #f44336;
+            background-color: #fff8f8;
+        }
+
+        .status {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 15px;
+            color: white;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .status.pass {
+            background-color: #4CAF50;
+        }
+
+        .status.fail {
+            background-color: #f44336;
+        }
+
+        .status.testing {
+            background-color: #ff9800;
+        }
+
+        .record-test {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .record-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 20px;
+        }
+
+        .record-button:hover {
+            transform: scale(1.1);
+        }
+
+        .record-button.recording {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .log {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .suggestions {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 录音功能兼容性测试</h1>
+        
+        <div id="tests">
+            <div class="test-item" id="test-https">
+                <span>HTTPS协议检查</span>
+                <span class="status testing">检测中</span>
+            </div>
+            
+            <div class="test-item" id="test-mediadevices">
+                <span>MediaDevices API支持</span>
+                <span class="status testing">检测中</span>
+            </div>
+            
+            <div class="test-item" id="test-mediarecorder">
+                <span>MediaRecorder API支持</span>
+                <span class="status testing">检测中</span>
+            </div>
+            
+            <div class="test-item" id="test-permission">
+                <span>麦克风权限状态</span>
+                <span class="status testing">检测中</span>
+            </div>
+            
+            <div class="test-item" id="test-formats">
+                <span>支持的音频格式</span>
+                <span class="status testing">检测中</span>
+            </div>
+        </div>
+
+        <div class="record-test">
+            <h3>录音功能测试</h3>
+            <button id="recordBtn" class="record-button">🎤</button>
+            <div id="recordStatus">点击麦克风开始测试录音</div>
+        </div>
+
+        <div class="log" id="log"></div>
+
+        <div class="suggestions" id="suggestions" style="display: none;">
+            <h4>🔧 建议解决方案：</h4>
+            <ul id="suggestionsList"></ul>
+        </div>
+    </div>
+
+    <script>
+        class RecordingTester {
+            constructor() {
+                this.logs = [];
+                this.suggestions = [];
+                this.mediaRecorder = null;
+                this.isRecording = false;
+                
+                this.init();
+            }
+
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                this.logs.push(`[${timestamp}] ${message}`);
+                document.getElementById('log').innerHTML = this.logs.join('<br>');
+                console.log(message);
+            }
+
+            addSuggestion(suggestion) {
+                this.suggestions.push(suggestion);
+                this.updateSuggestions();
+            }
+
+            updateSuggestions() {
+                const suggestionsDiv = document.getElementById('suggestions');
+                const suggestionsList = document.getElementById('suggestionsList');
+                
+                if (this.suggestions.length > 0) {
+                    suggestionsDiv.style.display = 'block';
+                    suggestionsList.innerHTML = this.suggestions.map(s => `<li>${s}</li>`).join('');
+                }
+            }
+
+            updateTestStatus(testId, status, details = '') {
+                const testItem = document.getElementById(testId);
+                const statusSpan = testItem.querySelector('.status');
+                
+                testItem.className = `test-item ${status}`;
+                statusSpan.className = `status ${status}`;
+                statusSpan.textContent = status === 'pass' ? '✓ 通过' : status === 'fail' ? '✗ 失败' : '检测中';
+                
+                if (details) {
+                    testItem.querySelector('span:first-child').textContent += ` (${details})`;
+                }
+            }
+
+            async init() {
+                this.log('开始录音兼容性测试...');
+                
+                // 测试HTTPS
+                this.testHTTPS();
+                
+                // 测试MediaDevices API
+                this.testMediaDevices();
+                
+                // 测试MediaRecorder API
+                this.testMediaRecorder();
+                
+                // 测试权限
+                await this.testPermission();
+                
+                // 测试音频格式
+                this.testAudioFormats();
+                
+                // 绑定录音测试
+                this.bindRecordingTest();
+            }
+
+            testHTTPS() {
+                const isSecure = window.isSecureContext || 
+                               location.hostname === 'localhost' || 
+                               location.hostname === '127.0.0.1' ||
+                               location.protocol === 'https:';
+                
+                if (isSecure) {
+                    this.updateTestStatus('test-https', 'pass');
+                    this.log('HTTPS检查通过');
+                } else {
+                    this.updateTestStatus('test-https', 'fail');
+                    this.log('HTTPS检查失败：需要HTTPS协议');
+                    this.addSuggestion('确保网站使用HTTPS协议访问');
+                }
+            }
+
+            testMediaDevices() {
+                if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+                    this.updateTestStatus('test-mediadevices', 'pass');
+                    this.log('MediaDevices API支持检查通过');
+                } else {
+                    this.updateTestStatus('test-mediadevices', 'fail');
+                    this.log('MediaDevices API不支持');
+                    this.addSuggestion('更新浏览器到支持MediaDevices API的版本');
+                }
+            }
+
+            testMediaRecorder() {
+                if (typeof window.MediaRecorder !== 'undefined') {
+                    this.updateTestStatus('test-mediarecorder', 'pass');
+                    this.log('MediaRecorder API支持检查通过');
+                } else {
+                    this.updateTestStatus('test-mediarecorder', 'fail');
+                    this.log('MediaRecorder API不支持');
+                    this.addSuggestion('更新浏览器到支持MediaRecorder API的版本');
+                }
+            }
+
+            async testPermission() {
+                try {
+                    if (navigator.permissions) {
+                        const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+                        this.log(`麦克风权限状态: ${permissionStatus.state}`);
+                        
+                        if (permissionStatus.state === 'granted') {
+                            this.updateTestStatus('test-permission', 'pass', '已授权');
+                        } else if (permissionStatus.state === 'denied') {
+                            this.updateTestStatus('test-permission', 'fail', '被拒绝');
+                            this.addSuggestion('在浏览器地址栏点击锁图标，允许麦克风权限');
+                        } else {
+                            this.updateTestStatus('test-permission', 'testing', '需要用户授权');
+                            this.log('权限状态为prompt，需要用户主动授权');
+                        }
+                    } else {
+                        this.updateTestStatus('test-permission', 'testing', '无法查询');
+                        this.log('浏览器不支持权限查询API');
+                    }
+                } catch (error) {
+                    this.updateTestStatus('test-permission', 'testing', '查询失败');
+                    this.log(`权限查询失败: ${error.message}`);
+                }
+            }
+
+            testAudioFormats() {
+                const formats = [
+                    'audio/webm;codecs=opus',
+                    'audio/mp4',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/wav'
+                ];
+
+                const supportedFormats = formats.filter(format => 
+                    MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(format)
+                );
+
+                if (supportedFormats.length > 0) {
+                    this.updateTestStatus('test-formats', 'pass', `${supportedFormats.length}种格式`);
+                    this.log(`支持的音频格式: ${supportedFormats.join(', ')}`);
+                } else {
+                    this.updateTestStatus('test-formats', 'fail', '无支持格式');
+                    this.log('没有找到支持的音频格式');
+                    this.addSuggestion('尝试更新浏览器或使用其他浏览器');
+                }
+            }
+
+            bindRecordingTest() {
+                const recordBtn = document.getElementById('recordBtn');
+                const recordStatus = document.getElementById('recordStatus');
+
+                recordBtn.addEventListener('click', async () => {
+                    if (!this.isRecording) {
+                        try {
+                            this.log('尝试获取麦克风权限...');
+                            recordStatus.textContent = '正在获取麦克风权限...';
+                            
+                            const stream = await navigator.mediaDevices.getUserMedia({ 
+                                audio: {
+                                    echoCancellation: true,
+                                    noiseSuppression: true,
+                                    autoGainControl: true
+                                } 
+                            });
+
+                            this.log('麦克风权限获取成功');
+                            this.updateTestStatus('test-permission', 'pass', '已授权');
+                            
+                            // 获取支持的MIME类型
+                            const mimeType = this.getBestMimeType();
+                            const options = mimeType ? { mimeType } : {};
+                            
+                            this.mediaRecorder = new MediaRecorder(stream, options);
+                            
+                            this.mediaRecorder.ondataavailable = (event) => {
+                                if (event.data.size > 0) {
+                                    this.log(`录音数据块大小: ${event.data.size} bytes`);
+                                }
+                            };
+                            
+                            this.mediaRecorder.onstop = () => {
+                                this.log('录音停止');
+                                stream.getTracks().forEach(track => track.stop());
+                                recordBtn.textContent = '🎤';
+                                recordBtn.classList.remove('recording');
+                                recordStatus.textContent = '录音测试完成！功能正常';
+                                this.isRecording = false;
+                            };
+                            
+                            this.mediaRecorder.onerror = (event) => {
+                                this.log(`录音错误: ${event.error || '未知错误'}`);
+                                recordStatus.textContent = '录音过程中发生错误';
+                            };
+                            
+                            this.mediaRecorder.start(1000);
+                            this.isRecording = true;
+                            recordBtn.textContent = '⏹️';
+                            recordBtn.classList.add('recording');
+                            recordStatus.textContent = '正在录音...点击停止';
+                            this.log('开始录音');
+                            
+                        } catch (error) {
+                            this.log(`录音测试失败: ${error.name} - ${error.message}`);
+                            recordStatus.textContent = `录音失败: ${error.message}`;
+                            
+                            if (error.name === 'NotAllowedError') {
+                                this.updateTestStatus('test-permission', 'fail', '权限被拒绝');
+                                this.addSuggestion('用户拒绝了麦克风权限，请在浏览器设置中允许');
+                            } else if (error.name === 'NotFoundError') {
+                                this.addSuggestion('未找到麦克风设备，检查设备连接');
+                            } else if (error.name === 'NotReadableError') {
+                                this.addSuggestion('麦克风被其他应用占用，关闭其他音频应用');
+                            }
+                        }
+                    } else {
+                        // 停止录音
+                        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                            this.mediaRecorder.stop();
+                        }
+                    }
+                });
+            }
+
+            getBestMimeType() {
+                const types = [
+                    'audio/webm;codecs=opus',
+                    'audio/mp4',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/wav'
+                ];
+                
+                for (const type of types) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        return type;
+                    }
+                }
+                
+                return '';
+            }
+        }
+
+        // 页面加载完成后开始测试
+        document.addEventListener('DOMContentLoaded', () => {
+            new RecordingTester();
+        });
+    </script>
+</body>
+</html> 

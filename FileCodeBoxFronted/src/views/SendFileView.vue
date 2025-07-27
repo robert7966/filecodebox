@@ -144,6 +144,19 @@
                   </p>
                 </div>
 
+                <!-- 手机录音指导 -->
+                <div v-if="isAudioSupported" class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div class="text-blue-800 text-sm space-y-2">
+                    <p class="font-medium">📱 手机录音提示：</p>
+                    <ul class="list-disc list-inside space-y-1 text-left">
+                      <li>确保网站使用HTTPS协议</li>
+                      <li>点击录音按钮时允许麦克风权限</li>
+                      <li>如果权限被拒绝，点击地址栏的🔒或🎤图标重新授权</li>
+                      <li>关闭其他可能占用麦克风的应用</li>
+                    </ul>
+                  </div>
+                </div>
+
                 <!-- 录制按钮 -->
                 <button
                   type="button"
@@ -752,10 +765,30 @@ const sendRecords = computed(() => fileDataStore.shareData)
 
 const fileHash = ref('')
 
+// 检查手机Chrome录音兼容性
+const getMimeTypeForDevice = () => {
+  const types = [
+    'audio/webm;codecs=opus',
+    'audio/mp4',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/wav'
+  ]
+  
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type)) {
+      return type
+    }
+  }
+  
+  // 如果都不支持，返回空字符串让浏览器自动选择
+  return ''
+}
+
 // 音频录制相关方法
 const toggleRecording = async () => {
   if (!isAudioSupported.value) {
-    alertStore.showAlert('您的浏览器不支持音频录制功能', 'error')
+    alertStore.showAlert('您的浏览器不支持音频录制功能，请使用HTTPS协议或支持的浏览器', 'error')
     return
   }
 
@@ -768,17 +801,36 @@ const toggleRecording = async () => {
 
 const startRecording = async () => {
   try {
+    // 检查权限状态 (在支持的浏览器中)
+    if (navigator.permissions) {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+        if (permissionStatus.state === 'denied') {
+          alertStore.showAlert('麦克风权限被拒绝，请在浏览器设置中允许麦克风访问权限', 'error')
+          return
+        }
+      } catch (error) {
+        console.log('无法查询权限状态，继续尝试录音')
+      }
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ 
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
-        sampleRate: 44100
+        autoGainControl: true,
+        // 针对手机优化的设置
+        sampleRate: { ideal: 44100, min: 16000 },
+        channelCount: { ideal: 1 },
+        sampleSize: { ideal: 16 }
       } 
     })
     
-    mediaRecorder.value = new MediaRecorder(stream, {
-      mimeType: 'audio/webm;codecs=opus'
-    })
+    // 获取适合当前设备的MIME类型
+    const mimeType = getMimeTypeForDevice()
+    const options = mimeType ? { mimeType } : {}
+    
+    mediaRecorder.value = new MediaRecorder(stream, options)
     
     audioChunks.value = []
     
@@ -789,10 +841,18 @@ const startRecording = async () => {
     }
     
     mediaRecorder.value.onstop = () => {
-      audioBlob.value = new Blob(audioChunks.value, { type: 'audio/webm' })
+      const recordedMimeType = mimeType || 'audio/webm'
+      audioBlob.value = new Blob(audioChunks.value, { type: recordedMimeType })
       audioBlobUrl.value = URL.createObjectURL(audioBlob.value)
       
       // 停止所有音频轨道
+      stream.getTracks().forEach(track => track.stop())
+    }
+    
+    mediaRecorder.value.onerror = (event: Event) => {
+      console.error('MediaRecorder错误:', event)
+      alertStore.showAlert(`录音过程中发生错误`, 'error')
+      // 清理资源
       stream.getTracks().forEach(track => track.stop())
     }
     
@@ -810,9 +870,19 @@ const startRecording = async () => {
     let errorMessage = '录音启动失败'
     
     if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-      errorMessage = '麦克风权限被拒绝，请允许麦克风访问权限'
+      errorMessage = '麦克风权限被拒绝。请在Chrome浏览器地址栏点击🔒或🎤图标，选择"允许"麦克风访问权限，然后刷新页面重试。'
     } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-      errorMessage = '未找到麦克风设备'
+      errorMessage = '未找到麦克风设备，请确保您的设备已连接麦克风并在系统设置中启用'
+    } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+      errorMessage = '麦克风被其他应用占用，请关闭其他正在使用麦克风的应用程序，然后重试'
+    } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+      errorMessage = '麦克风不支持所需的录音格式，请尝试使用其他设备'
+    } else if (error.name === 'SecurityError') {
+      errorMessage = '安全限制：请确保页面在HTTPS环境下运行'
+    } else if (error.name === 'AbortError') {
+      errorMessage = '录音请求被中断，请重试'
+    } else {
+      errorMessage = `录音启动失败: ${error.message || '未知错误'}`
     }
     
     alertStore.showAlert(errorMessage, 'error')

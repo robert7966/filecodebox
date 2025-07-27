@@ -1,50 +1,169 @@
-name: Build and push Docker image
+# GitHub Actions 工作流：构建并推送 Docker 镜像到 GitHub Container Registry
+# 此工作流支持多平台构建（amd64/arm64）并自动管理镜像标签
 
+name: Build and Push Docker Image
+
+# 工作流触发条件
 on:
+  # 手动触发：允许在 GitHub Actions 页面手动运行工作流
   workflow_dispatch:
+  
+  # 推送触发：当代码推送到指定分支时自动触发
   push:
     branches:
+      - master      # 主分支
+      - main        # 主分支（GitHub 新默认分支名）
+    tags:
+      - 'v*'        # 版本标签（如 v1.0.0, v2.1.3 等）
+  
+  # Pull Request 触发：仅构建但不推送，用于验证构建过程
+  pull_request:
+    branches:
       - master
+      - main
+
+# 环境变量定义
+env:
+  # GitHub Container Registry 地址
+  REGISTRY: ghcr.io
+  # 镜像名称，使用仓库名称作为镜像名
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  buildx:
+  # 构建和推送任务
+  build-and-push:
+    # 运行环境：使用最新的 Ubuntu
     runs-on: ubuntu-latest
+    
+    # 设置权限：允许读取仓库内容和写入包
+    permissions:
+      contents: read      # 读取仓库代码
+      packages: write     # 写入 GitHub Packages (GHCR)
+    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      # 步骤1：检出代码
+      # 下载仓库代码到运行器，包括子模块
+      - name: 检出代码仓库
+        uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: true    # 同时拉取 Git 子模块
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+      # 步骤2：设置 QEMU
+      # QEMU 用于模拟不同的 CPU 架构，支持交叉编译
+      - name: 设置 QEMU 模拟器
+        uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      # 步骤3：设置 Docker Buildx
+      # Buildx 是 Docker 的扩展构建器，支持多平台构建和高级功能
+      - name: 设置 Docker Buildx 构建器
+        uses: docker/setup-buildx-action@v3
 
-      - name: Cache Docker layers
-        uses: actions/cache@v3
+      # 步骤4：提取元数据
+      # 根据 Git 分支、标签等信息自动生成 Docker 镜像标签和标签
+      - name: 提取镜像元数据
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          path: /tmp/.buildx-cache
+          # 镜像仓库地址
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # 标签生成规则
+          tags: |
+            # 分支名标签：如 master, main, feature-branch
+            type=ref,event=branch
+            # PR 标签：如 pr-123
+            type=ref,event=pr
+            # 语义化版本标签：从 git 标签提取
+            type=semver,pattern={{version}}      # 完整版本号：v1.2.3 -> 1.2.3
+            type=semver,pattern={{major}}.{{minor}}  # 主次版本号：v1.2.3 -> 1.2
+            type=semver,pattern={{major}}        # 主版本号：v1.2.3 -> 1
+            # latest 标签：仅在默认分支（master/main）上生成
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # 步骤5：配置 Docker 层缓存
+      # 缓存 Docker 构建层以加速后续构建
+      - name: 配置 Docker 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache     # 缓存路径
+          # 缓存键：基于操作系统和提交哈希
           key: ${{ runner.os }}-buildx-${{ github.sha }}
+          # 缓存恢复键：如果精确匹配失败，使用这些前缀匹配
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
+      # 步骤6：登录到 GitHub Container Registry
+      # 只在非 PR 情况下登录（PR 只构建不推送）
+      - name: 登录到 GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ${{ env.REGISTRY }}
+          # 使用 GitHub Actor（触发工作流的用户）作为用户名
+          username: ${{ github.actor }}
+          # 使用 GitHub 提供的令牌进行认证
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v4
+      # 步骤7：构建并推送 Docker 镜像
+      # 执行多平台构建并推送到 GHCR
+      - name: 构建并推送 Docker 镜像
+        uses: docker/build-push-action@v5
         with:
-          context: .
+          context: .                   # 构建上下文：当前目录
+          # 支持的平台架构
           platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/filecodebox:beta
+          # 推送条件：只在非 PR 时推送镜像
+          push: ${{ github.event_name != 'pull_request' }}
+          # 使用前面生成的标签
+          tags: ${{ steps.meta.outputs.tags }}
+          # 使用前面生成的标签（包含构建时间、版本等元信息）
+          labels: ${{ steps.meta.outputs.labels }}
+          # 缓存配置：从本地缓存读取
           cache-from: type=local,src=/tmp/.buildx-cache
+          # 缓存配置：写入本地缓存，使用最大模式
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-      - name: Move cache
+
+      # 步骤8：更新缓存
+      # 将新的缓存目录替换旧的，避免缓存文件冲突
+      - name: 更新构建缓存
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      # 步骤9：输出镜像摘要
+      # 显示构建的镜像 SHA256 摘要，用于验证和追踪
+      - name: 输出镜像摘要信息
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "🎉 镜像构建完成！"
+          echo "📦 镜像摘要: ${{ steps.meta.outputs.digest }}"
+          echo "🏷️  镜像标签:"
+          echo "${{ steps.meta.outputs.tags }}" | while read tag; do
+            echo "   - $tag"
+          done
+
+      # 步骤10：设置镜像为公开
+      # 使用 GitHub CLI 将推送的包设置为公开可见
+      - name: 设置镜像包为公开
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 提取仓库名称作为包名
+          PACKAGE_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "📋 设置包 '$PACKAGE_NAME' 为公开..."
+          
+          # 使用 GitHub CLI 设置包可见性为公开
+          # 注意：这需要仓库有足够的权限
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/orgs/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME" \
+            -f visibility='public' || \
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME" \
+            -f visibility='public' || \
+          echo "⚠️  无法设置包为公开，可能需要手动在 GitHub 包页面设置"

@@ -108,6 +108,41 @@ async def calculate_file_hash(file: UploadFile, chunk_size=1024 * 1024) -> str:
     return sha.hexdigest()
 
 
+async def get_audio_file_path_name(name: str, format: str, duration: float):
+    """
+    生成音频文件的路径和名称
+    """
+    import uuid
+    from datetime import datetime
+    
+    # 生成唯一的文件名前缀
+    now = datetime.now()
+    date_prefix = now.strftime("%Y%m%d")
+    unique_id = str(uuid.uuid4())[:8]
+    
+    # 音频文件名处理
+    if not name or name.strip() == "":
+        name = "录音文件"
+    
+    # 清理文件名，移除特殊字符
+    import re
+    name = re.sub(r'[^\w\s-]', '', name).strip()
+    if not name:
+        name = "录音文件"
+    
+    # 构建文件名
+    duration_str = f"{int(duration)}s" if duration > 0 else "0s"
+    prefix = f"audio_{date_prefix}_{unique_id}_{name}_{duration_str}"
+    suffix = f".{format.lower()}"
+    uuid_file_name = f"{prefix}{suffix}"
+    
+    # 文件路径 (按日期组织)
+    file_path = f"audios/{now.strftime('%Y/%m/%d')}"
+    save_path = f"{file_path}/{uuid_file_name}"
+    
+    return file_path, suffix, prefix, uuid_file_name, save_path
+
+
 ip_limit = {
     "error": IPRateLimit(count=settings.uploadCount, minutes=settings.errorMinute),
     "upload": IPRateLimit(count=settings.errorCount, minutes=settings.errorMinute),

@@ -6,8 +6,8 @@ from starlette import status
 
 from apps.admin.dependencies import share_required_login
 from apps.base.models import FileCodes, UploadChunk
-from apps.base.schemas import SelectFileModel, InitChunkUploadModel, CompleteUploadModel
-from apps.base.utils import get_expire_info, get_file_path_name, ip_limit, get_chunk_file_path_name
+from apps.base.schemas import SelectFileModel, InitChunkUploadModel, CompleteUploadModel, AudioUploadModel
+from apps.base.utils import get_expire_info, get_file_path_name, ip_limit, get_chunk_file_path_name, get_audio_file_path_name
 from core.response import APIResponse
 from core.settings import settings
 from core.storage import storages, FileStorageInterface
@@ -85,6 +85,74 @@ async def share_file(
     return APIResponse(detail={"code": code, "name": file.filename})
 
 
+@share_api.post("/audio/", dependencies=[Depends(share_required_login)])
+async def share_audio_recording(
+    audio_file: UploadFile = File(...),
+    name: str = Form(default="录音文件"),
+    duration: float = Form(...),
+    format: str = Form(default="webm"),
+    expire_value: int = Form(default=1, gt=0),
+    expire_style: str = Form(default="day"),
+    ip: str = Depends(ip_limit["upload"]),
+):
+    """
+    上传音频录制文件
+    """
+    # 验证音频格式
+    allowed_formats = ["webm", "mp3", "wav", "ogg", "m4a"]
+    if format.lower() not in allowed_formats:
+        raise HTTPException(status_code=400, detail="不支持的音频格式")
+    
+    # 验证文件大小（音频文件通常比较小，设置合理的限制）
+    max_audio_size = min(settings.uploadSize, 50 * 1024 * 1024)  # 最大50MB
+    await validate_file_size(audio_file, max_audio_size)
+    
+    # 验证过期时间类型
+    if expire_style not in settings.expireStyle:
+        raise HTTPException(status_code=400, detail="过期时间类型错误")
+    
+    # 获取过期信息和生成分享码
+    expired_at, expired_count, used_count, code = await get_expire_info(expire_value, expire_style)
+    
+    # 处理音频文件路径和命名
+    path, suffix, prefix, uuid_file_name, save_path = await get_audio_file_path_name(
+        name, format, duration
+    )
+    
+    # 保存文件到存储系统
+    file_storage: FileStorageInterface = storages[settings.file_storage]()
+    await file_storage.save_file(audio_file, save_path)
+    
+    # 创建文件记录，标记为音频类型
+    await create_file_code(
+        code=code,
+        prefix=prefix,
+        suffix=suffix,
+        uuid_file_name=uuid_file_name,
+        file_path=path,
+        size=audio_file.size,
+        expired_at=expired_at,
+        expired_count=expired_count,
+        used_count=used_count,
+        file_type="audio",  # 标记为音频文件
+        metadata={
+            "duration": duration,
+            "format": format,
+            "original_name": name
+        }
+    )
+    
+    # 更新IP限制
+    ip_limit["upload"].add_ip(ip)
+    
+    return APIResponse(detail={
+        "code": code, 
+        "name": f"{name}.{format}",
+        "duration": duration,
+        "type": "audio"
+    })
+
+
 async def get_code_file_by_code(code, check=True):
     file_code = await FileCodes.filter(code=code).first()
     if not file_code:
@@ -122,6 +190,26 @@ async def select_file(data: SelectFileModel, ip: str = Depends(ip_limit["error"]
         return APIResponse(code=404, detail=file_code)
 
     await update_file_usage(file_code)
+    
+    # 为音频文件提供特殊的响应格式
+    if file_code.is_audio():
+        return APIResponse(
+            detail={
+                "code": file_code.code,
+                "name": file_code.prefix + file_code.suffix,
+                "size": file_code.size,
+                "type": "audio",
+                "duration": file_code.get_duration(),
+                "format": file_code.get_audio_format(),
+                "text": (
+                    file_code.text
+                    if file_code.text is not None
+                    else await file_storage.get_file_url(file_code)
+                ),
+            }
+        )
+    
+    # 普通文件的原有逻辑
     return APIResponse(
         detail={
             "code": file_code.code,

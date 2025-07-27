@@ -120,6 +120,30 @@ async def index(request=None, exc=None):
     )
 
 
+@app.get("/themes/audio_record.html")
+async def audio_record_page():
+    """音频录制页面"""
+    return HTMLResponse(
+        content=open(
+            BASE_DIR / "themes/audio_record.html", "r", encoding="utf-8"
+        ).read(),
+        media_type="text/html",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/themes/audio_player.html")
+async def audio_player_page():
+    """音频播放页面"""
+    return HTMLResponse(
+        content=open(
+            BASE_DIR / "themes/audio_player.html", "r", encoding="utf-8"
+        ).read(),
+        media_type="text/html",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 @app.get("/robots.txt")
 async def robots():
     return HTMLResponse(content=settings.robotsText, media_type="text/plain")

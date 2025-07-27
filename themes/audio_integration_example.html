@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频功能集成示例 - FileCodeBox</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .feature-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            background: #f8f9fa;
+        }
+        
+        .feature-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature-desc {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f, #a8e6cf);
+            color: white;
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        
+        .code-example {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+        
+        .highlight {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            margin: 15px 0;
+        }
+        
+        @media (max-width: 600px) {
+            .button-group {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center; color: #333; margin-bottom: 10px;">🎵 音频功能集成指南</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 40px;">
+            FileCodeBox 音频录制与分享功能的完整实现方案
+        </p>
+
+        <div class="feature-card">
+            <div class="feature-title">
+                🎤 音频录制功能
+            </div>
+            <div class="feature-desc">
+                基于浏览器 MediaRecorder API 实现的高质量音频录制，支持实时预览和多种音频格式输出。
+            </div>
+            <div class="button-group">
+                <a href="/themes/audio_record.html" class="btn btn-primary">🎤 开始录制</a>
+                <button class="btn btn-info" onclick="showRecordingCode()">📋 查看代码</button>
+            </div>
+            <div id="recordingCode" style="display: none;">
+                <div class="code-example">
+// 音频录制核心代码
+const mediaRecorder = new MediaRecorder(stream, {
+    mimeType: 'audio/webm;codecs=opus'
+});
+
+mediaRecorder.ondataavailable = (event) => {
+    if (event.data.size > 0) {
+        audioChunks.push(event.data);
+    }
+};
+
+mediaRecorder.onstop = () => {
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    // 上传到服务器
+    uploadAudio(audioBlob);
+};
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-title">
+                🎵 音频播放与分享
+            </div>
+            <div class="feature-desc">
+                支持通过分享码获取和播放音频文件，提供完整的播放控制和下载功能。
+            </div>
+            <div class="button-group">
+                <a href="/themes/audio_player.html" class="btn btn-success">🎵 播放音频</a>
+                <button class="btn btn-info" onclick="showPlayerCode()">📋 查看代码</button>
+            </div>
+            <div id="playerCode" style="display: none;">
+                <div class="code-example">
+// 获取音频文件
+const response = await fetch('/share/select/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: shareCode })
+});
+
+const result = await response.json();
+if (result.detail.type === 'audio') {
+    // 显示音频播放器
+    audioPlayer.src = result.detail.text;
+    audioPlayer.load();
+}
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-title">
+                🔧 后端 API 集成
+            </div>
+            <div class="feature-desc">
+                服务器端提供完整的音频文件处理 API，支持上传、存储和检索。
+            </div>
+            <div class="button-group">
+                <button class="btn btn-info" onclick="showAPICode()">📋 API 文档</button>
+            </div>
+            <div id="apiCode" style="display: none;">
+                <div class="code-example">
+# 音频上传 API
+POST /share/audio/
+Content-Type: multipart/form-data
+
+Fields:
+- audio_file: 音频文件 (File)
+- name: 文件名 (String)
+- duration: 时长秒数 (Float)
+- format: 音频格式 (String)
+- expire_value: 过期数值 (Int)
+- expire_style: 过期类型 (String)
+
+Response:
+{
+    "detail": {
+        "code": "ABC123",
+        "name": "录音文件.webm",
+        "duration": 30.5,
+        "type": "audio"
+    }
+}
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-title">
+                💾 数据库架构
+            </div>
+            <div class="feature-desc">
+                扩展了现有的 FileCodes 模型，增加了音频文件的元数据支持。
+            </div>
+            <div class="button-group">
+                <button class="btn btn-info" onclick="showDatabaseCode()">📋 数据库结构</button>
+            </div>
+            <div id="databaseCode" style="display: none;">
+                <div class="code-example">
+# FileCodes 模型新增字段
+class FileCodes(models.Model):
+    # ... 原有字段 ...
+    file_type = fields.CharField(max_length=50, default="file")
+    metadata = fields.JSONField(null=True)
+    
+    def is_audio(self):
+        return self.file_type == "audio"
+    
+    def get_duration(self):
+        if self.is_audio() and self.metadata:
+            return self.metadata.get("duration", 0)
+        return 0
+
+# 数据库迁移
+python apps/base/migrations/migrations_003.py
+                </div>
+            </div>
+        </div>
+
+        <div class="highlight">
+            <h3 style="margin-top: 0; color: #667eea;">🚀 集成步骤总结</h3>
+            <ol style="color: #333; line-height: 1.8;">
+                <li><strong>运行数据库迁移</strong>：添加音频支持字段</li>
+                <li><strong>部署页面文件</strong>：audio_record.html 和 audio_player.html</li>
+                <li><strong>更新路由配置</strong>：在 main.py 中添加页面路由</li>
+                <li><strong>测试音频功能</strong>：录制、上传、分享、播放流程</li>
+                <li><strong>自定义集成</strong>：根据需要修改 UI 和功能</li>
+            </ol>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px;">
+            <a href="/" class="btn btn-primary">← 返回首页</a>
+        </div>
+    </div>
+
+    <script>
+        function showRecordingCode() {
+            const element = document.getElementById('recordingCode');
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function showPlayerCode() {
+            const element = document.getElementById('playerCode');
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function showAPICode() {
+            const element = document.getElementById('apiCode');
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function showDatabaseCode() {
+            const element = document.getElementById('databaseCode');
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html> 

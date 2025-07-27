@@ -28,6 +28,9 @@ class FileCodes(models.Model):
     file_hash = fields.CharField(max_length=64, null=True)
     is_chunked = fields.BooleanField(default=False)
     upload_id = fields.CharField(max_length=36, null=True)
+    # 新增音频相关字段
+    file_type = fields.CharField(max_length=50, default="file")  # file, audio, text等
+    metadata = fields.JSONField(null=True)  # 存储额外的元数据信息
 
     async def is_expired(self):
         if self.expired_at is None:
@@ -38,6 +41,22 @@ class FileCodes(models.Model):
 
     async def get_file_path(self):
         return f"{self.file_path}/{self.uuid_file_name}"
+
+    def is_audio(self):
+        """检查是否为音频文件"""
+        return self.file_type == "audio"
+
+    def get_duration(self):
+        """获取音频时长"""
+        if self.is_audio() and self.metadata:
+            return self.metadata.get("duration", 0)
+        return 0
+
+    def get_audio_format(self):
+        """获取音频格式"""
+        if self.is_audio() and self.metadata:
+            return self.metadata.get("format", "webm")
+        return None
 
 
 class UploadChunk(models.Model):

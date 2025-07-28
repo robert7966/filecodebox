@@ -727,6 +727,7 @@ const recordingTime = ref(0)
 const audioBlob = ref<Blob | null>(null)
 const audioBlobUrl = ref<string>('')
 const audioFileName = ref('我的录音')
+const audioActualMimeType = ref<string>('') // 🎯 存储实际录制的MIME类型
 const mediaRecorder = ref<MediaRecorder | null>(null)
 const recordingStartTime = ref<number>(0)
 const recordingTimer = ref<number | null>(null)
@@ -905,6 +906,9 @@ const startRecording = async () => {
       audioBlob.value = new Blob(audioChunks.value, { type: finalMimeType })
       audioBlobUrl.value = URL.createObjectURL(audioBlob.value)
       
+      // 🎯 保存实际录制的MIME类型用于上传
+      audioActualMimeType.value = finalMimeType
+      
       // 根据实际录制的格式更新文件名后缀
       updateAudioFileName(finalMimeType)
       
@@ -992,6 +996,9 @@ const resetRecording = () => {
   
   // 重置文件名为默认值
   audioFileName.value = '我的录音'
+  
+  // 🎯 重置保存的MIME类型
+  audioActualMimeType.value = ''
   
   if (recordingTimer.value) {
     clearInterval(recordingTimer.value)
@@ -1301,11 +1308,49 @@ const handleAudioUpload = async () => {
   const duration = recordingTime.value
 
   try {
+    // 🎯 获取实际音频格式信息（优先使用保存的格式）
+    const actualMimeType = audioActualMimeType.value || audioBlob.value.type || 'audio/wav'
+    console.log('🔍 上传音频实际格式:', actualMimeType)
+    console.log('📋 保存的格式:', audioActualMimeType.value)
+    console.log('📦 Blob格式:', audioBlob.value.type)
+    
+    // 🎯 根据实际格式确定文件扩展名和format参数
+    let fileExtension = '.wav'
+    let formatParam = 'wav'
+    
+    if (actualMimeType.includes('mp4') || actualMimeType.includes('aac')) {
+      fileExtension = '.m4a'
+      formatParam = 'm4a'
+    } else if (actualMimeType.includes('mpeg') || actualMimeType.includes('mp3')) {
+      fileExtension = '.mp3'
+      formatParam = 'mp3'
+    } else if (actualMimeType.includes('wav')) {
+      fileExtension = '.wav'
+      formatParam = 'wav'
+    } else if (actualMimeType.includes('ogg')) {
+      fileExtension = '.ogg'
+      formatParam = 'ogg'
+    } else if (actualMimeType.includes('webm')) {
+      // 🚫 如果仍然是WebM，强制使用WAV
+      fileExtension = '.wav'
+      formatParam = 'wav'
+      console.log('⚠️ 检测到WebM格式，上传时使用WAV格式以确保兼容性')
+    }
+    
+    // 🎯 确保文件名包含正确的扩展名
+    const baseFileName = fileName.replace(/\.(mp3|mp4|wav|webm|ogg|m4a|aac)$/i, '')
+    const fullFileName = baseFileName + fileExtension
+    
+    console.log('📤 上传参数:')
+    console.log(`📁 文件名: ${fullFileName}`)
+    console.log(`🎵 格式参数: ${formatParam}`)
+    console.log(`🔖 MIME类型: ${actualMimeType}`)
+
     const formData = new FormData()
-    formData.append('audio_file', audioBlob.value, `${fileName}.webm`)
-    formData.append('name', fileName)
+    formData.append('audio_file', audioBlob.value, fullFileName)
+    formData.append('name', baseFileName) // 不包含扩展名的基础名称
     formData.append('duration', duration.toString())
-    formData.append('format', 'webm')
+    formData.append('format', formatParam) // 🎯 使用实际格式而非硬编码webm
     formData.append('expire_value', expirationValue.value)
     formData.append('expire_style', expirationMethod.value)
 
@@ -1319,9 +1364,10 @@ const handleAudioUpload = async () => {
       }
     })
 
+    console.log('✅ 音频上传成功，实际使用格式:', formatParam)
     return response
   } catch (error: any) {
-    console.error('音频上传失败:', error)
+    console.error('❌ 音频上传失败:', error)
     throw error
   }
 }

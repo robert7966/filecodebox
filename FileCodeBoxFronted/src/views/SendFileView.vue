@@ -727,6 +727,8 @@ const audioBlob = ref<Blob | null>(null)
 const audioBlobUrl = ref<string>('')
 const audioFileName = ref('我的录音')
 const audioActualMimeType = ref<string>('') // 🎯 存储实际录制的MIME类型
+// 追踪是否需要在获得取件码后立即复制（音频录制完成时设置）
+const shouldAutoCopyAfterUpload = ref(false)
 const mediaRecorder = ref<MediaRecorder | null>(null)
 const recordingStartTime = ref<number>(0)
 const recordingTimer = ref<number | null>(null)
@@ -847,6 +849,9 @@ const toggleRecording = async () => {
 
 const startRecording = async () => {
   try {
+    // 开始新录制时，重置自动复制标志
+    shouldAutoCopyAfterUpload.value = false
+    
     // 检查权限状态 (在支持的浏览器中)
     if (navigator.permissions) {
       try {
@@ -920,6 +925,10 @@ const startRecording = async () => {
       console.log(`📏 文件大小: ${(audioBlob.value.size / 1024).toFixed(2)} KB`)
       console.log(`⏱️ 录制时长: ${recordingTime.value} 秒`)
       console.log(`📝 文件名: ${audioFileName.value}`)
+      
+      // 🎯 录制完成时，标记需要在上传成功后立即复制（移动端优化）
+      shouldAutoCopyAfterUpload.value = true
+      console.log('📋 已设置自动复制标志，将在上传成功后立即复制链接')
     }
     
     mediaRecorder.value.onerror = (event: Event) => {
@@ -988,8 +997,9 @@ const resetRecording = () => {
   // 重置文件名为默认值
   audioFileName.value = '我的录音'
   
-  // 🎯 重置保存的MIME类型
+  // 🎯 重置保存的MIME类型和自动复制标志
   audioActualMimeType.value = ''
+  shouldAutoCopyAfterUpload.value = false
   
   if (recordingTimer.value) {
     clearInterval(recordingTimer.value)
@@ -1455,17 +1465,33 @@ const handleSubmit = async () => {
       const retrieveCode = response.detail.code
       const fileName = response.detail.name
       
-      // 🚀 延迟复制链接，确保UI更新完成且用户激活状态最佳
-      setTimeout(async () => {
+      // 🚀 智能复制策略：只有音频录制完成后才自动复制
+      if (sendType.value === 'audio' && shouldAutoCopyAfterUpload.value) {
+        console.log('🎵 音频上传成功，开始执行自动复制')
+        try {
+          const copySuccess = await copyRetrieveLink(retrieveCode)
+          if (copySuccess) {
+            console.log('✅ 音频录制后自动复制成功')
+          } else {
+            console.log('❌ 音频录制后自动复制失败，已提供手动复制方案')
+          }
+        } catch (error) {
+          console.error('复制链接时发生错误:', error)
+        } finally {
+          // 复制完成后重置标志
+          shouldAutoCopyAfterUpload.value = false
+        }
+      } else if (sendType.value !== 'audio') {
+        // 非音频文件使用原有的复制策略
         try {
           const copySuccess = await copyRetrieveLink(retrieveCode)
           if (!copySuccess) {
-            console.log('自动复制失败，用户可手动复制')
+            console.log('立即复制失败，已提供手动复制方案')
           }
         } catch (error) {
           console.error('复制链接时发生错误:', error)
         }
-      }, 200) // 延迟200ms执行复制
+      }
       
       // 根据不同类型计算大小和类型标识
       let size = ''
@@ -1500,11 +1526,17 @@ const handleSubmit = async () => {
       // 显示发送成功消息
       let successMessage = ''
       if (sendType.value === 'audio') {
-        successMessage = `音频发送成功！时长: ${formatTime(recordingTime.value)}，取件码：${retrieveCode}`
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        if (isMobile && !shouldAutoCopyAfterUpload.value) {
+          // 移动端且自动复制失败时，显示可点击的链接
+          successMessage = `🎵 音频发送成功！\n⏱️ 时长: ${formatTime(recordingTime.value)}\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}`
+        } else {
+          successMessage = `🎵 音频发送成功！时长: ${formatTime(recordingTime.value)}，取件码：${retrieveCode}`
+        }
       } else {
         successMessage = `${sendType.value === 'file' ? '文件' : '文本'}发送成功！取件码：${retrieveCode}`
       }
-      alertStore.showAlert(successMessage, 'success')
+      alertStore.showAlert(successMessage, 'success', sendType.value === 'audio' && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? 8000 : 4000)
       
       // 显示详情
       selectedRecord.value = newRecord

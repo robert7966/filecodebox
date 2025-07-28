@@ -107,25 +107,56 @@ export const copyToClipboard = async (
 }
 
 /**
- * 生成并复制取件链接 - 优化时机和重试机制
+ * 生成并复制取件链接 - 移动端优化版本
  * @param code 取件码
+ * @param maxRetries 最大重试次数
  * @returns Promise<boolean> 是否复制成功
  */
-export const copyRetrieveLink = async (code: string): Promise<boolean> => {
+export const copyRetrieveLink = async (code: string, maxRetries: number = 3): Promise<boolean> => {
   const link = `${window.location.origin}/#/?code=${code}`
   
   // 检测移动设备
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   
-  // 移动端增加短暂延迟，确保用户操作完成
+  // 移动端重试策略
   if (isMobile) {
-    await new Promise(resolve => setTimeout(resolve, 100))
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`📱 移动端复制尝试 ${attempt}/${maxRetries}`)
+      
+      // 每次尝试前确保有足够的延迟
+      if (attempt > 1) {
+        await new Promise(resolve => setTimeout(resolve, attempt * 200))
+      }
+      
+      const success = await copyToClipboard(link, {
+        successMsg: '✅ 取件链接已复制到剪贴板',
+        errorMsg: ``,
+        showMsg: attempt === maxRetries // 只在最后一次失败时显示错误
+      })
+      
+      if (success) {
+        console.log(`✅ 移动端复制成功 (第${attempt}次尝试)`)
+        return true
+      }
+      
+      console.log(`❌ 移动端复制失败 (第${attempt}次尝试)`)
+    }
+    
+    // 所有重试都失败，显示移动端友好的错误提示
+    const alertStore = useAlertStore()
+    alertStore.showAlert(
+      `📋 自动复制失败\n取件码：${code}\n🔗 完整链接：\n${link}\n💡 提示：长按上方链接手动复制`, 
+      'warning', 
+      10000
+    )
+    return false
+  } else {
+    // 桌面端使用原有逻辑
+    return copyToClipboard(link, {
+      successMsg: '✅ 取件链接已复制到剪贴板',
+      errorMsg: `复制失败，请手动复制取件链接`
+    })
   }
-  
-  return copyToClipboard(link, {
-    successMsg: '✅ 取件链接已复制到剪贴板',
-    errorMsg: `复制失败，请手动复制取件链接`
-  })
 }
 
 /**

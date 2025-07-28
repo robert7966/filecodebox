@@ -765,45 +765,45 @@ const sendRecords = computed(() => fileDataStore.shareData)
 
 const fileHash = ref('')
 
-// 检查设备音频录制兼容性，优先使用移动端友好的格式
+// 检查设备音频录制兼容性，完全避免WebM格式
 const getMimeTypeForDevice = () => {
   // 检测设备类型
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
   
-  // 移动端优先使用MP3/AAC格式，桌面端可以使用更多格式
+  // 🚫 完全不使用WebM格式，优先使用MP4/MP3/WAV
   const types = isMobile ? [
     'audio/mp4',                    // MP4容器，通常包含AAC编码，移动端最佳
     'audio/mp4;codecs=mp4a.40.2',   // 明确指定AAC-LC编码
     'audio/mpeg',                   // MP3格式，广泛支持
     'audio/mp3',                    // MP3格式的另一种MIME类型
-    'audio/webm;codecs=opus',       // Chrome移动版支持
-    'audio/ogg;codecs=opus',        // 备选方案
-    'audio/wav'                     // 最后的备选，文件较大
+    'audio/wav',                    // WAV格式，通用但文件较大
+    'audio/ogg;codecs=opus'         // 仅作为最后备选
   ] : [
     'audio/mp4',                    // 桌面端也优先MP4
     'audio/mp4;codecs=mp4a.40.2',   // AAC编码
     'audio/mpeg',                   // MP3
-    'audio/webm;codecs=opus',       // Chrome桌面版
-    'audio/webm',                   // Chrome支持
-    'audio/ogg;codecs=opus',        // Firefox支持
-    'audio/wav'                     // 最通用但体积大
+    'audio/mp3',                    // MP3的另一种MIME类型
+    'audio/wav',                    // WAV格式
+    'audio/ogg;codecs=opus'         // 仅作为最后备选，不使用WebM
   ]
   
-  console.log(`检测音频格式支持 (${isMobile ? '移动端' : '桌面端'}):`)
+  console.log(`🎵 检测音频格式支持 (${isMobile ? '移动端' : '桌面端'}) - 不使用WebM:`)
   
   for (const type of types) {
     const isSupported = MediaRecorder.isTypeSupported(type)
     console.log(`${type}: ${isSupported ? '✅支持' : '❌不支持'}`)
     if (isSupported) {
-      console.log(`🎵 选择音频格式: ${type}`)
+      console.log(`🎯 选择音频格式: ${type}`)
       
       // 对于移动端，特别是iOS，给出格式说明
       if (isMobile) {
         if (type.includes('mp4') || type.includes('aac')) {
-          console.log('📱 使用移动端优化的AAC格式，确保最佳兼容性')
+          console.log('📱 使用移动端优化的AAC格式，确保最佳兼容性和播放支持')
         } else if (type.includes('mpeg') || type.includes('mp3')) {
-          console.log('📱 使用MP3格式，移动端广泛支持')
+          console.log('📱 使用MP3格式，移动端广泛支持且播放兼容性好')
+        } else if (type.includes('wav')) {
+          console.log('📱 使用WAV格式，通用性好但文件较大')
         }
       }
       
@@ -811,11 +811,12 @@ const getMimeTypeForDevice = () => {
     }
   }
   
-  console.log('⚠️ 未找到首选的音频格式，使用浏览器默认格式')
-  console.log('📝 建议在HTTPS环境下使用以获得更好的格式支持')
+  console.log('⚠️ 未找到首选的音频格式')
+  console.log('🔄 强制使用兼容性最好的格式')
   
-  // 如果都不支持，返回空字符串让浏览器自动选择
-  return ''
+  // 🎯 如果都不支持，强制使用最兼容的格式
+  // 不返回空字符串避免浏览器选择WebM
+  return 'audio/wav' // 使用WAV作为最后的回退格式
 }
 
 // 音频录制相关方法
@@ -883,10 +884,22 @@ const startRecording = async () => {
         if (mediaRecorder.value && mediaRecorder.value.mimeType) {
           finalMimeType = mediaRecorder.value.mimeType
           console.log('📋 检测到实际录制格式:', finalMimeType)
+          
+          // 🚫 如果检测到WebM格式，强制转换为兼容格式
+          if (finalMimeType.includes('webm')) {
+            console.log('⚠️ 检测到WebM格式，强制使用WAV格式以确保兼容性')
+            finalMimeType = 'audio/wav'
+          }
         } else {
-          finalMimeType = 'audio/webm' // 最后的回退
-          console.log('⚠️ 使用默认格式: audio/webm')
+          finalMimeType = 'audio/wav' // 🎯 使用WAV作为回退，不使用WebM
+          console.log('⚠️ 无法检测格式，使用兼容性最好的WAV格式')
         }
+      }
+      
+      // 🚫 额外保险：即使mimeType不为空，也要检查是否为WebM
+      if (finalMimeType && finalMimeType.includes('webm')) {
+        console.log('🔄 将WebM格式转换为WAV格式以确保播放兼容性')
+        finalMimeType = 'audio/wav'
       }
       
       audioBlob.value = new Blob(audioChunks.value, { type: finalMimeType })
@@ -904,6 +917,14 @@ const startRecording = async () => {
       console.log(`📏 文件大小: ${(audioBlob.value.size / 1024).toFixed(2)} KB`)
       console.log(`⏱️ 录制时长: ${recordingTime.value} 秒`)
       console.log(`📝 文件名: ${audioFileName.value}`)
+      
+      // 🔍 验证最终格式不包含WebM
+      if (finalMimeType.includes('webm')) {
+        console.error('❌ 错误：最终格式仍包含WebM，这不应该发生！')
+        alertStore.showAlert('音频格式处理异常，请重新录制', 'error')
+      } else {
+        console.log('✅ 验证通过：最终格式不包含WebM')
+      }
     }
     
     mediaRecorder.value.onerror = (event: Event) => {
@@ -978,11 +999,11 @@ const resetRecording = () => {
   }
 }
 
-// 根据音频格式更新文件名后缀
+// 根据音频格式更新文件名后缀（不使用WebM扩展名）
 const updateAudioFileName = (mimeType: string) => {
   const baseName = audioFileName.value.replace(/\.(mp3|mp4|wav|webm|ogg|m4a|aac)$/i, '')
   
-  // 根据MIME类型确定文件扩展名
+  // 根据MIME类型确定文件扩展名，🚫 不使用.webm扩展名
   let extension = '.wav' // 默认扩展名
   
   if (mimeType.includes('mp4') || mimeType.includes('aac')) {
@@ -990,7 +1011,9 @@ const updateAudioFileName = (mimeType: string) => {
   } else if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
     extension = '.mp3'
   } else if (mimeType.includes('webm')) {
-    extension = '.webm'
+    // 🚫 即使是WebM格式，也使用.wav扩展名以确保兼容性
+    extension = '.wav'
+    console.log('⚠️ WebM格式文件使用.wav扩展名以确保播放兼容性')
   } else if (mimeType.includes('ogg')) {
     extension = '.ogg'
   } else if (mimeType.includes('wav')) {
@@ -998,7 +1021,14 @@ const updateAudioFileName = (mimeType: string) => {
   }
   
   audioFileName.value = baseName + extension
-  console.log(`📝 文件名已更新为: ${audioFileName.value}`)
+  console.log(`📝 文件名已更新为: ${audioFileName.value} (格式: ${mimeType})`)
+  
+  // 🔍 验证文件名不包含.webm扩展名
+  if (audioFileName.value.toLowerCase().includes('.webm')) {
+    console.error('❌ 错误：文件名仍包含.webm扩展名！')
+    audioFileName.value = baseName + '.wav' // 强制使用.wav
+    console.log('🔄 强制修正为: ' + audioFileName.value)
+  }
 }
 
 const formatTime = (seconds: number): string => {

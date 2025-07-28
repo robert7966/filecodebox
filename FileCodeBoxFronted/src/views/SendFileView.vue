@@ -765,28 +765,55 @@ const sendRecords = computed(() => fileDataStore.shareData)
 
 const fileHash = ref('')
 
-// 检查设备音频录制兼容性，优先使用通用格式
+// 检查设备音频录制兼容性，优先使用移动端友好的格式
 const getMimeTypeForDevice = () => {
-  // 重新排序，优先使用兼容性更好的格式
-  const types = [
-    'audio/wav',                    // 最通用的格式
-    'audio/mp4',                    // 移动设备友好
-    'audio/webm',                   // Chrome 支持
-    'audio/ogg;codecs=opus',        // Firefox 支持  
-    'audio/webm;codecs=opus'        // 最新的压缩格式
+  // 检测设备类型
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  
+  // 移动端优先使用MP3/AAC格式，桌面端可以使用更多格式
+  const types = isMobile ? [
+    'audio/mp4',                    // MP4容器，通常包含AAC编码，移动端最佳
+    'audio/mp4;codecs=mp4a.40.2',   // 明确指定AAC-LC编码
+    'audio/mpeg',                   // MP3格式，广泛支持
+    'audio/mp3',                    // MP3格式的另一种MIME类型
+    'audio/webm;codecs=opus',       // Chrome移动版支持
+    'audio/ogg;codecs=opus',        // 备选方案
+    'audio/wav'                     // 最后的备选，文件较大
+  ] : [
+    'audio/mp4',                    // 桌面端也优先MP4
+    'audio/mp4;codecs=mp4a.40.2',   // AAC编码
+    'audio/mpeg',                   // MP3
+    'audio/webm;codecs=opus',       // Chrome桌面版
+    'audio/webm',                   // Chrome支持
+    'audio/ogg;codecs=opus',        // Firefox支持
+    'audio/wav'                     // 最通用但体积大
   ]
   
-  console.log('检测音频格式支持:')
+  console.log(`检测音频格式支持 (${isMobile ? '移动端' : '桌面端'}):`)
+  
   for (const type of types) {
     const isSupported = MediaRecorder.isTypeSupported(type)
-    console.log(`${type}: ${isSupported ? '支持' : '不支持'}`)
+    console.log(`${type}: ${isSupported ? '✅支持' : '❌不支持'}`)
     if (isSupported) {
-      console.log(`选择音频格式: ${type}`)
+      console.log(`🎵 选择音频格式: ${type}`)
+      
+      // 对于移动端，特别是iOS，给出格式说明
+      if (isMobile) {
+        if (type.includes('mp4') || type.includes('aac')) {
+          console.log('📱 使用移动端优化的AAC格式，确保最佳兼容性')
+        } else if (type.includes('mpeg') || type.includes('mp3')) {
+          console.log('📱 使用MP3格式，移动端广泛支持')
+        }
+      }
+      
       return type
     }
   }
   
-  console.log('未找到支持的音频格式，使用浏览器默认')
+  console.log('⚠️ 未找到首选的音频格式，使用浏览器默认格式')
+  console.log('📝 建议在HTTPS环境下使用以获得更好的格式支持')
+  
   // 如果都不支持，返回空字符串让浏览器自动选择
   return ''
 }
@@ -851,8 +878,17 @@ const startRecording = async () => {
       audioBlob.value = new Blob(audioChunks.value, { type: recordedMimeType })
       audioBlobUrl.value = URL.createObjectURL(audioBlob.value)
       
+      // 根据录制的格式更新文件名后缀
+      updateAudioFileName(recordedMimeType)
+      
       // 停止所有音频轨道
       stream.getTracks().forEach(track => track.stop())
+      
+      // 显示录制完成的格式信息
+      console.log('🎤 录制完成！')
+      console.log(`📁 文件格式: ${recordedMimeType}`)
+      console.log(`📏 文件大小: ${(audioBlob.value.size / 1024).toFixed(2)} KB`)
+      console.log(`⏱️ 录制时长: ${recordingTime.value} 秒`)
     }
     
     mediaRecorder.value.onerror = (event: Event) => {
@@ -918,10 +954,36 @@ const resetRecording = () => {
   recordingTime.value = 0
   recordingStartTime.value = 0
   
+  // 重置文件名为默认值
+  audioFileName.value = '我的录音'
+  
   if (recordingTimer.value) {
     clearInterval(recordingTimer.value)
     recordingTimer.value = null
   }
+}
+
+// 根据音频格式更新文件名后缀
+const updateAudioFileName = (mimeType: string) => {
+  const baseName = audioFileName.value.replace(/\.(mp3|mp4|wav|webm|ogg|m4a|aac)$/i, '')
+  
+  // 根据MIME类型确定文件扩展名
+  let extension = '.wav' // 默认扩展名
+  
+  if (mimeType.includes('mp4') || mimeType.includes('aac')) {
+    extension = '.m4a'  // MP4容器的音频文件通常使用.m4a扩展名
+  } else if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
+    extension = '.mp3'
+  } else if (mimeType.includes('webm')) {
+    extension = '.webm'
+  } else if (mimeType.includes('ogg')) {
+    extension = '.ogg'
+  } else if (mimeType.includes('wav')) {
+    extension = '.wav'
+  }
+  
+  audioFileName.value = baseName + extension
+  console.log(`📝 文件名已更新为: ${audioFileName.value}`)
 }
 
 const formatTime = (seconds: number): string => {
@@ -1369,8 +1431,21 @@ const handleSubmit = async () => {
       
       // 显示详情
       selectedRecord.value = newRecord
-      // 自动复制取件码链接
-      await copyRetrieveLink(retrieveCode)
+      
+      // 自动复制取件码链接，对移动端提供额外提示
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      const copySuccess = await copyRetrieveLink(retrieveCode)
+      
+      // 如果是移动端且复制失败，提供额外的操作指导
+      if (isMobile && !copySuccess) {
+        setTimeout(() => {
+          alertStore.showAlert(
+            `📱 移动端提示：\n取件码：${retrieveCode}\n\n💡 您也可以：\n1. 点击下方"复制取件链接"按钮\n2. 或分享此页面给朋友`, 
+            'info', 
+            8000
+          )
+        }, 2000) // 2秒后显示，避免与错误提示冲突
+      }
     } else {
       throw new Error('服务器响应异常')
     }

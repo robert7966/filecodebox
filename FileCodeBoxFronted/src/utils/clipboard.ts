@@ -22,10 +22,27 @@ export const copyToClipboard = async (
   const { successMsg = '复制成功', errorMsg = '复制失败，请手动复制', showMsg = true } = options
   const alertStore = useAlertStore()
   
+  // 检测移动设备
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const isChrome = /Chrome/i.test(navigator.userAgent)
+  
   try {
-    // 方案1: 优先尝试使用现代 Clipboard API
+    // 方案1: 现代 Clipboard API（对移动端添加更严格的检查）
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try {
+        // 移动端Chrome需要检查安全上下文和用户激活
+        if (isMobile && isChrome) {
+          // 检查是否在安全上下文中
+          if (!window.isSecureContext) {
+            throw new Error('移动端需要HTTPS环境')
+          }
+          
+          // 检查用户激活状态（用户是否最近有交互）
+          if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+            throw new Error('需要用户交互激活')
+          }
+        }
+        
         await navigator.clipboard.writeText(text)
         if (showMsg) alertStore.showAlert(successMsg, 'success')
         return true
@@ -35,14 +52,23 @@ export const copyToClipboard = async (
       }
     }
     
-    // 方案2: 改进的 execCommand 方法
+    // 方案2: 移动端特殊处理 - 使用用户手势触发的复制
+    if (isMobile) {
+      const mobileSuccess = await mobileCopyStrategy(text)
+      if (mobileSuccess) {
+        if (showMsg) alertStore.showAlert(successMsg, 'success')
+        return true
+      }
+    }
+    
+    // 方案3: 改进的 execCommand 方法
     const success = await fallbackCopyTextToClipboard(text)
     if (success) {
       if (showMsg) alertStore.showAlert(successMsg, 'success')
       return true
     }
     
-    // 方案3: 创建可选择的临时元素
+    // 方案4: 创建可选择的临时元素
     const tempSuccess = createSelectableElement(text)
     if (tempSuccess) {
       if (showMsg) alertStore.showAlert(successMsg, 'success')
@@ -65,14 +91,13 @@ export const copyToClipboard = async (
     }
     
     if (showMsg) {
-      // 在移动设备上提供更多帮助
-      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       if (isMobile) {
-        detailedErrorMsg += '。请长按上方链接进行复制'
+        // 移动端提供更详细的操作指导
+        detailedErrorMsg += '\n\n📱 移动端复制方法：\n1. 长按上方链接\n2. 选择"复制"\n3. 或在浏览器分享菜单中复制链接'
       } else {
         detailedErrorMsg += '。请手动选择并复制上方链接'
       }
-      alertStore.showAlert(detailedErrorMsg, 'error', 10000) // 10秒显示时间
+      alertStore.showAlert(detailedErrorMsg, 'error', 12000) // 12秒显示时间
     }
     return false
   }
@@ -187,6 +212,79 @@ function createSelectableElement(text: string): boolean {
     console.error('创建可选择元素失败:', error)
     return false
   }
+}
+
+/**
+ * 移动端专用复制策略
+ * @param text 要复制的文本
+ */
+async function mobileCopyStrategy(text: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      // 创建一个可见的输入框供用户交互
+      const input = document.createElement('input')
+      input.value = text
+      input.style.position = 'fixed'
+      input.style.top = '50%'
+      input.style.left = '50%'
+      input.style.transform = 'translate(-50%, -50%)'
+      input.style.zIndex = '9999'
+      input.style.fontSize = '16px' // 防止iOS缩放
+      input.style.padding = '8px'
+      input.style.border = '2px solid #3b82f6'
+      input.style.borderRadius = '8px'
+      input.style.background = 'white'
+      input.style.color = 'black'
+      input.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'
+      
+      // 添加标签提示
+      const label = document.createElement('div')
+      label.textContent = '请全选并复制以下链接：'
+      label.style.position = 'fixed'
+      label.style.top = 'calc(50% - 50px)'
+      label.style.left = '50%'
+      label.style.transform = 'translateX(-50%)'
+      label.style.zIndex = '9999'
+      label.style.color = 'white'
+      label.style.background = 'rgba(0,0,0,0.8)'
+      label.style.padding = '8px 12px'
+      label.style.borderRadius = '4px'
+      label.style.fontSize = '14px'
+      
+      document.body.appendChild(label)
+      document.body.appendChild(input)
+      
+      // 自动选择文本
+      input.focus()
+      input.select()
+      input.setSelectionRange(0, input.value.length)
+      
+      // 尝试自动复制
+      setTimeout(() => {
+        try {
+          const success = document.execCommand('copy')
+          document.body.removeChild(input)
+          document.body.removeChild(label)
+          resolve(success)
+        } catch (error) {
+          // 如果自动复制失败，保持元素让用户手动复制
+          setTimeout(() => {
+            try {
+              document.body.removeChild(input)
+              document.body.removeChild(label)
+            } catch (e) {
+              // 元素可能已经被移除
+            }
+            resolve(false)
+          }, 3000) // 3秒后自动清理
+        }
+      }, 100)
+      
+    } catch (error) {
+      console.error('移动端复制策略失败:', error)
+      resolve(false)
+    }
+  })
 }
 
 const baseUrl = window.location.origin + '/'

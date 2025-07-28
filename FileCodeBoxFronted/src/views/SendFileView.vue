@@ -157,7 +157,7 @@
                   </div>
                 </div>
 
-                <!-- 录制按钮 -->
+                <!-- 录制按钮 - 支持重新录制 -->
                 <button
                   type="button"
                   @click="toggleRecording"
@@ -166,7 +166,9 @@
                   :class="[
                     isRecording 
                       ? 'bg-gradient-to-br from-green-500 to-green-600 animate-pulse' 
-                      : 'bg-gradient-to-br from-red-500 to-red-600'
+                      : audioBlob 
+                        ? 'bg-gradient-to-br from-orange-500 to-orange-600' 
+                        : 'bg-gradient-to-br from-red-500 to-red-600'
                   ]"
                 >
                   <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,8 +189,15 @@
                   </svg>
                 </button>
 
-                <!-- 计时器 -->
-                <div class="text-2xl font-mono font-bold text-gray-900 mb-4">{{ formatTime(recordingTime) }}</div>
+                <!-- 录制状态提示 -->
+                <div class="text-center mb-4">
+                  <div v-if="isRecording" class="text-2xl font-mono font-bold text-green-600 mb-2">{{ formatTime(recordingTime) }}</div>
+                  <p class="text-sm text-gray-600" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-600']">
+                    <span v-if="isRecording">正在录制... 点击停止</span>
+                    <span v-else-if="audioBlob">录制完成，点击重新录制</span>
+                    <span v-else>点击开始录制</span>
+                  </p>
+                </div>
 
                 <!-- 音频播放器 -->
                 <audio 
@@ -216,20 +225,7 @@
                   />
                 </div>
 
-                <!-- 录制控制按钮 - 优化显示逻辑 -->
-                <div class="flex gap-3 mt-6" v-if="audioBlob && uploadProgress === 0">
-                  <button
-                    type="button"
-                    @click="resetRecording"
-                    class="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-                    :class="[isDarkMode ? 'bg-gray-700 text-gray-400 hover:bg-gray-600' : '']"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    重新录制
-                  </button>
-                </div>
+
               </div>
             </div>
           </transition>
@@ -750,8 +746,13 @@ const isAudioSupported = computed(() => {
   return hasMediaDevices && hasMediaRecorder && isSecureContext
 })
 
-// 提交按钮状态
+// 提交按钮状态 - 录制时禁用
 const canSubmit = computed(() => {
+  // 录制过程中禁用提交按钮
+  if (isRecording.value) {
+    return false
+  }
+  
   if (sendType.value === 'file') {
     return selectedFile.value !== null
   } else if (sendType.value === 'text') {
@@ -823,7 +824,7 @@ const getMimeTypeForDevice = () => {
   return 'audio/wav' // 使用WAV作为最后的回退格式
 }
 
-// 音频录制相关方法
+// 音频录制相关方法 - 支持重新录制
 const toggleRecording = async () => {
   if (!isAudioSupported.value) {
     alertStore.showAlert('您的浏览器不支持音频录制功能，请使用HTTPS协议或支持的浏览器', 'error')
@@ -831,8 +832,15 @@ const toggleRecording = async () => {
   }
 
   if (isRecording.value) {
+    // 如果正在录制，则停止录制
     stopRecording()
   } else {
+    // 如果不在录制状态，检查是否有已录制的内容
+    if (audioBlob.value) {
+      // 如果有录音，则重新开始录制（重置之前的录音）
+      resetRecording()
+    }
+    // 开始新的录制
     await startRecording()
   }
 }

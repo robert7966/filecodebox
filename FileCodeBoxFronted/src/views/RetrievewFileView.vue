@@ -227,6 +227,8 @@
                 @pause="onAudioPause"
                 @ended="onAudioEnded"
                 @error="onAudioError"
+                @loadeddata="onAudioLoadedData"
+                @canplay="onAudioCanPlay"
                 preload="metadata"
                 crossorigin="anonymous"
                 class="hidden"
@@ -466,16 +468,29 @@ const handleSubmit = async () => {
           // 音频文件直接显示详情并自动加载音频
           setTimeout(async () => {
             if (audioRef.value) {
-              console.log('开始加载音频文件:', newFileData.filename)
+              console.log('🎵 开始加载音频文件:', newFileData.filename)
+              console.log('🔗 音频URL:', getDownloadUrl(newFileData))
+              
+              // 添加临时事件监听器检测加载状态
+              let metadataLoaded = false
+              const tempMetadataHandler = () => {
+                metadataLoaded = true
+                console.log('✅ 初始加载元数据成功')
+              }
+              
+              audioRef.value.addEventListener('loadedmetadata', tempMetadataHandler, { once: true })
               audioRef.value.load()
               
-              // 如果10秒后仍未加载成功，尝试fetch方案
+              // 较短时间后检查是否需要使用fetch方案
               setTimeout(async () => {
-                if (audioError.value || duration.value === 0) {
-                  console.log('音频加载超时，尝试fetch方案')
+                audioRef.value?.removeEventListener('loadedmetadata', tempMetadataHandler)
+                
+                if (!metadataLoaded || audioError.value || duration.value === 0) {
+                  console.log('⚠️ 初始加载失败，切换到fetch方案')
+                  console.log('状态: metadataLoaded=', metadataLoaded, 'audioError=', audioError.value, 'duration=', duration.value)
                   await loadAudioWithFetch(getDownloadUrl(newFileData))
                 }
-              }, 10000)
+              }, 3000) // 缩短到3秒
             }
           }, 100)
         } else if (!isFile) {
@@ -516,16 +531,29 @@ const viewDetails = (record) => {
   if (record.isAudio) {
     setTimeout(async () => {
       if (audioRef.value) {
-        console.log('重新加载音频文件:', record.filename)
+        console.log('🎵 重新加载音频文件:', record.filename)
+        console.log('🔗 音频URL:', getDownloadUrl(record))
+        
+        // 添加临时事件监听器检测加载状态
+        let metadataLoaded = false
+        const tempMetadataHandler = () => {
+          metadataLoaded = true
+          console.log('✅ 重新加载元数据成功')
+        }
+        
+        audioRef.value.addEventListener('loadedmetadata', tempMetadataHandler, { once: true })
         audioRef.value.load()
         
-        // 如果10秒后仍未加载成功，尝试fetch方案
+        // 较短时间后检查是否需要使用fetch方案
         setTimeout(async () => {
-          if (audioError.value || duration.value === 0) {
-            console.log('音频加载超时，尝试fetch方案')
+          audioRef.value?.removeEventListener('loadedmetadata', tempMetadataHandler)
+          
+          if (!metadataLoaded || audioError.value || duration.value === 0) {
+            console.log('⚠️ 重新加载失败，切换到fetch方案')
+            console.log('状态: metadataLoaded=', metadataLoaded, 'audioError=', audioError.value, 'duration=', duration.value)
             await loadAudioWithFetch(getDownloadUrl(record))
           }
-        }, 10000)
+        }, 3000) // 缩短到3秒
       }
     }, 100)
   }
@@ -651,12 +679,13 @@ const formatTime = (seconds) => {
 // 加载音频的回退方案
 const loadAudioWithFetch = async (url) => {
   try {
-    console.log('尝试使用fetch加载音频:', url)
+    console.log('🔄 尝试使用fetch加载音频:', url)
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
     const blob = await response.blob()
+    console.log('📁 Blob类型:', blob.type, '大小:', blob.size, 'bytes')
     
     // 清理之前的对象URL
     if (audioObjectUrl.value) {
@@ -664,16 +693,55 @@ const loadAudioWithFetch = async (url) => {
     }
     
     audioObjectUrl.value = URL.createObjectURL(blob)
+    console.log('🔗 创建ObjectURL:', audioObjectUrl.value)
     
     if (audioRef.value) {
+      // 重置音频状态
+      audioRef.value.currentTime = 0
+      duration.value = 0
+      
+      // 添加一次性事件监听器来确保元数据加载
+      const handleMetadataLoaded = () => {
+        console.log('🎯 fetch方案触发元数据加载')
+        if (audioRef.value && isFinite(audioRef.value.duration)) {
+          duration.value = audioRef.value.duration
+          console.log('✅ fetch方案获取时长成功:', duration.value)
+        }
+        audioRef.value?.removeEventListener('loadedmetadata', handleMetadataLoaded)
+      }
+      
+      const handleCanPlay = () => {
+        console.log('🎯 fetch方案音频可播放')
+        if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+          duration.value = audioRef.value.duration
+          console.log('✅ canplay事件获取时长:', duration.value)
+        }
+        audioRef.value?.removeEventListener('canplay', handleCanPlay)
+      }
+      
+      audioRef.value.addEventListener('loadedmetadata', handleMetadataLoaded)
+      audioRef.value.addEventListener('canplay', handleCanPlay)
+      
       audioRef.value.src = audioObjectUrl.value
       audioRef.value.load()
+      
+      // 给更多时间加载元数据
+      setTimeout(() => {
+        if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+          duration.value = audioRef.value.duration
+          console.log('⏰ 延迟检查获取时长:', duration.value)
+        } else if (duration.value === 0) {
+          // 最后的兜底方案：使用临时Audio对象检测时长
+          console.log('🔧 尝试兜底方案检测时长')
+          detectAudioDurationFallback(audioObjectUrl.value)
+        }
+      }, 2000)
     }
     
-    console.log('音频通过fetch加载成功')
+    console.log('✅ 音频通过fetch加载成功')
     return true
   } catch (error) {
-    console.error('fetch加载音频失败:', error)
+    console.error('❌ fetch加载音频失败:', error)
     return false
   }
 }
@@ -708,9 +776,27 @@ const toggleAudioPlayback = async () => {
 // 音频事件处理
 const onAudioLoadedMetadata = () => {
   if (audioRef.value) {
-    duration.value = audioRef.value.duration || 0
-    audioError.value = false
-    console.log('音频元数据加载成功，时长:', duration.value)
+    const audioDuration = audioRef.value.duration
+    console.log('🎵 音频元数据加载事件触发')
+    console.log('📏 原始duration值:', audioDuration)
+    console.log('🔍 duration类型:', typeof audioDuration)
+    console.log('✅ isFinite check:', isFinite(audioDuration))
+    
+    if (isFinite(audioDuration) && audioDuration > 0) {
+      duration.value = audioDuration
+      audioError.value = false
+      console.log('✅ 音频时长设置成功:', duration.value, '秒')
+      console.log('🕒 格式化显示:', formatTime(duration.value))
+    } else {
+      console.warn('⚠️ 音频时长无效:', audioDuration)
+      // 尝试强制重新加载元数据
+      setTimeout(() => {
+        if (audioRef.value && audioRef.value.duration) {
+          duration.value = audioRef.value.duration
+          console.log('🔄 延迟获取时长成功:', duration.value)
+        }
+      }, 1000)
+    }
   }
 }
 
@@ -737,6 +823,20 @@ const onAudioEnded = () => {
     audioRef.value.currentTime = 0
   }
   console.log('音频播放结束')
+}
+
+const onAudioLoadedData = () => {
+  if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+    duration.value = audioRef.value.duration
+    console.log('🔄 loadeddata事件获取时长:', duration.value)
+  }
+}
+
+const onAudioCanPlay = () => {
+  if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+    duration.value = audioRef.value.duration
+    console.log('🔄 canplay事件获取时长:', duration.value)
+  }
 }
 
 const onAudioError = async (event) => {
@@ -798,6 +898,53 @@ const onAudioError = async (event) => {
   }
   
   alertStore.showAlert(errorMessage + '\n\n请尝试直接下载音频文件', 'error', 8000)
+}
+
+// 兜底方案：使用临时Audio对象检测时长
+const detectAudioDurationFallback = (audioUrl) => {
+  if (!audioUrl) return
+  
+  console.log('🔧 创建临时Audio对象检测时长')
+  const tempAudio = new Audio(audioUrl)
+  
+  const cleanup = () => {
+    tempAudio.removeEventListener('loadedmetadata', handleTempLoadedMetadata)
+    tempAudio.removeEventListener('error', handleTempError)
+    tempAudio.removeEventListener('canplaythrough', handleTempCanPlay)
+  }
+  
+  const handleTempLoadedMetadata = () => {
+    if (isFinite(tempAudio.duration) && tempAudio.duration > 0) {
+      duration.value = tempAudio.duration
+      console.log('✅ 兜底方案获取时长成功:', duration.value)
+    } else {
+      console.warn('⚠️ 兜底方案获取的时长无效:', tempAudio.duration)
+    }
+    cleanup()
+  }
+  
+  const handleTempCanPlay = () => {
+    if (isFinite(tempAudio.duration) && tempAudio.duration > 0 && duration.value === 0) {
+      duration.value = tempAudio.duration
+      console.log('✅ 兜底方案通过canplay获取时长:', duration.value)
+    }
+    cleanup()
+  }
+  
+  const handleTempError = (error) => {
+    console.warn('⚠️ 兜底方案Audio对象加载失败:', error)
+    cleanup()
+  }
+  
+  tempAudio.addEventListener('loadedmetadata', handleTempLoadedMetadata)
+  tempAudio.addEventListener('canplaythrough', handleTempCanPlay)
+  tempAudio.addEventListener('error', handleTempError)
+  
+  // 5秒超时清理
+  setTimeout(cleanup, 5000)
+  
+  tempAudio.preload = 'metadata'
+  tempAudio.load()
 }
 </script>
 

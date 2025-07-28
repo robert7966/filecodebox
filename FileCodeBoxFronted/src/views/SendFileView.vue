@@ -1444,6 +1444,9 @@ const handleSubmit = async () => {
       const retrieveCode = response.detail.code
       const fileName = response.detail.name
       
+      // 🚀 上传成功后立即复制链接，确保用户激活状态最佳
+      const copySuccess = await copyRetrieveLink(retrieveCode)
+      
       // 根据不同类型计算大小和类型标识
       let size = ''
       let typeIndicator = ''
@@ -1483,28 +1486,19 @@ const handleSubmit = async () => {
       }
       alertStore.showAlert(successMessage, 'success')
       
-      // 显示详情（先显示，保持用户交互状态）
+      // 显示详情
       selectedRecord.value = newRecord
-      
-      // 改进实现：立即执行复制操作，避免资源清理影响用户激活状态
-      const preserveUserActivation = async () => {
-        // 立即复制，避免资源清理影响用户激活状态
-        return await copyRetrieveLink(retrieveCode)
-      }
-      
-      // 先执行复制操作
-      const copySuccess = await preserveUserActivation()
       
       // 基本状态重置
       selectedFile.value = null
       textContent.value = ''
       uploadProgress.value = 0
       
-      // 音频特定的资源清理延迟更长时间
+      // 音频特定的资源清理延迟处理
       if (sendType.value === 'audio') {
         setTimeout(() => {
           resetRecording()
-        }, 200) // 增加延迟时间到200ms
+        }, 200)
       }
     } else {
       throw new Error('服务器响应异常')

@@ -1465,32 +1465,45 @@ const handleSubmit = async () => {
       const retrieveCode = response.detail.code
       const fileName = response.detail.name
       
-      // 🚀 智能复制策略：只有音频录制完成后才自动复制
-      if (sendType.value === 'audio' && shouldAutoCopyAfterUpload.value) {
-        console.log('🎵 音频上传成功，开始执行自动复制')
-        try {
-          const copySuccess = await copyRetrieveLink(retrieveCode)
+      // 🚀 统一复制策略：所有类型都尝试自动复制，针对iOS优化
+      console.log(`📋 开始执行${sendType.value}类型的自动复制`)
+      
+      try {
+        let copySuccess = false
+        
+        if (sendType.value === 'audio') {
+          // 音频：使用特殊的重试策略
+          console.log('🎵 音频上传成功，开始执行自动复制')
+          copySuccess = await copyRetrieveLink(retrieveCode, 2) // 音频减少重试次数，因为时机更好
           if (copySuccess) {
             console.log('✅ 音频录制后自动复制成功')
           } else {
             console.log('❌ 音频录制后自动复制失败，已提供手动复制方案')
           }
-        } catch (error) {
-          console.error('复制链接时发生错误:', error)
-        } finally {
-          // 复制完成后重置标志
+          // 重置标志
           shouldAutoCopyAfterUpload.value = false
-        }
-      } else if (sendType.value !== 'audio') {
-        // 非音频文件使用原有的复制策略
-        try {
-          const copySuccess = await copyRetrieveLink(retrieveCode)
-          if (!copySuccess) {
-            console.log('立即复制失败，已提供手动复制方案')
+        } else if (sendType.value === 'file') {
+          // 文件：立即尝试复制，iOS Chrome兼容性处理
+          console.log('📁 文件上传成功，开始执行自动复制')
+          copySuccess = await copyRetrieveLink(retrieveCode, 3) // 文件上传后可能需要更多重试
+          if (copySuccess) {
+            console.log('✅ 文件上传后自动复制成功')
+          } else {
+            console.log('❌ 文件上传后自动复制失败，已提供手动复制方案')
           }
-        } catch (error) {
-          console.error('复制链接时发生错误:', error)
+        } else if (sendType.value === 'text') {
+          // 文本：最佳时机，iOS Chrome通常支持良好
+          console.log('📝 文本发送成功，开始执行自动复制')
+          copySuccess = await copyRetrieveLink(retrieveCode, 1) // 文本只需1次尝试通常就能成功
+          if (copySuccess) {
+            console.log('✅ 文本发送后自动复制成功')
+          } else {
+            console.log('❌ 文本发送后自动复制失败，已提供手动复制方案')
+          }
         }
+        
+      } catch (error) {
+        console.error('复制链接时发生错误:', error)
       }
       
       // 根据不同类型计算大小和类型标识
@@ -1523,20 +1536,43 @@ const handleSubmit = async () => {
       }
       fileDataStore.addShareData(newRecord)
 
-      // 显示发送成功消息
+      // 显示发送成功消息 - 针对iOS Chrome优化
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      const isIOSChrome = /iPhone|iPad|iPod/i.test(navigator.userAgent) && /CriOS/i.test(navigator.userAgent)
+      
       let successMessage = ''
+      let displayTime = 4000 // 默认显示时间
+      
       if (sendType.value === 'audio') {
-        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
         if (isMobile && !shouldAutoCopyAfterUpload.value) {
           // 移动端且自动复制失败时，显示可点击的链接
           successMessage = `🎵 音频发送成功！\n⏱️ 时长: ${formatTime(recordingTime.value)}\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}`
+          displayTime = 10000
         } else {
           successMessage = `🎵 音频发送成功！时长: ${formatTime(recordingTime.value)}，取件码：${retrieveCode}`
+          displayTime = isMobile ? 6000 : 4000
         }
-      } else {
-        successMessage = `${sendType.value === 'file' ? '文件' : '文本'}发送成功！取件码：${retrieveCode}`
+      } else if (sendType.value === 'file') {
+        if (isIOSChrome) {
+          // iOS Chrome用户需要更详细的信息
+          successMessage = `📁 文件发送成功！\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}`
+          displayTime = 8000
+        } else {
+          successMessage = `📁 文件发送成功！取件码：${retrieveCode}`
+          displayTime = isMobile ? 6000 : 4000
+        }
+      } else if (sendType.value === 'text') {
+        if (isIOSChrome) {
+          // iOS Chrome用户需要更详细的信息  
+          successMessage = `📝 文本发送成功！\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}`
+          displayTime = 8000
+        } else {
+          successMessage = `📝 文本发送成功！取件码：${retrieveCode}`
+          displayTime = isMobile ? 6000 : 4000
+        }
       }
-      alertStore.showAlert(successMessage, 'success', sendType.value === 'audio' && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? 8000 : 4000)
+      
+      alertStore.showAlert(successMessage, 'success', displayTime)
       
       // 显示详情
       selectedRecord.value = newRecord

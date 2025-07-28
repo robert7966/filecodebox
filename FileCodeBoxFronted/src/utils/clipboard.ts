@@ -22,25 +22,30 @@ export const copyToClipboard = async (
   const { successMsg = '复制成功', errorMsg = '复制失败，请手动复制', showMsg = true } = options
   const alertStore = useAlertStore()
   
-  // 检测移动设备
+  // 检测设备类型
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const isIOSChrome = isIOS && /CriOS/i.test(navigator.userAgent)
   
   try {
-    // 优化移动端兼容性检查 - 放宽用户激活检查
-    if (isMobile) {
-      // 只在严格必要时检查用户激活状态
+    // iOS Chrome特殊兼容性处理
+    if (isIOSChrome) {
+      console.log('🍎 iOS Chrome复制优化策略')
+      // iOS Chrome对用户激活状态要求更严格，但我们仍然尝试
+    } else if (isMobile) {
+      // 其他移动端兼容性检查 - 放宽用户激活检查
       if (navigator.userActivation && navigator.userActivation.hasBeenActive === false) {
         console.warn('用户激活状态检查: 用户尚未激活页面')
         // 不要直接返回失败，而是继续尝试其他方法
       }
-      
-      // 检查安全上下文，但允许localhost开发环境
-      if (!window.isSecureContext && !location.hostname.includes('localhost') && !location.hostname.includes('127.0.0.1')) {
-        if (showMsg) {
-          alertStore.showAlert('需要HTTPS环境才能使用复制功能', 'error')
-        }
-        return false
+    }
+    
+    // 检查安全上下文，但允许localhost开发环境
+    if (!window.isSecureContext && !location.hostname.includes('localhost') && !location.hostname.includes('127.0.0.1')) {
+      if (showMsg) {
+        alertStore.showAlert('需要HTTPS环境才能使用复制功能', 'error')
       }
+      return false
     }
     
     // 方案1: 现代 Clipboard API - 增加重试机制
@@ -107,7 +112,7 @@ export const copyToClipboard = async (
 }
 
 /**
- * 生成并复制取件链接 - 移动端优化版本
+ * 生成并复制取件链接 - iOS Chrome优化版本
  * @param code 取件码
  * @param maxRetries 最大重试次数
  * @returns Promise<boolean> 是否复制成功
@@ -115,11 +120,48 @@ export const copyToClipboard = async (
 export const copyRetrieveLink = async (code: string, maxRetries: number = 3): Promise<boolean> => {
   const link = `${window.location.origin}/#/?code=${code}`
   
-  // 检测移动设备
+  // 检测设备类型
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const isIOSChrome = isIOS && /CriOS/i.test(navigator.userAgent)
   
-  // 移动端重试策略
-  if (isMobile) {
+  // iOS Chrome特殊处理
+  if (isIOSChrome) {
+    console.log('🍎 检测到iOS Chrome，使用优化策略')
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`🍎 iOS Chrome复制尝试 ${attempt}/${maxRetries}`)
+      
+      // iOS Chrome需要更短的延迟
+      if (attempt > 1) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      
+      const success = await copyToClipboard(link, {
+        successMsg: '✅ 取件链接已复制到剪贴板',
+        errorMsg: ``,
+        showMsg: true // iOS Chrome成功时总是显示提示
+      })
+      
+      if (success) {
+        console.log(`✅ iOS Chrome复制成功 (第${attempt}次尝试)`)
+        return true
+      }
+      
+      console.log(`❌ iOS Chrome复制失败 (第${attempt}次尝试)`)
+    }
+    
+    // iOS Chrome失败时的特殊提示
+    const alertStore = useAlertStore()
+    alertStore.showAlert(
+      `📋 iOS Chrome自动复制失败\n取件码：${code}\n💡 请手动选择并复制下方链接：\n${link}`, 
+      'warning', 
+      12000
+    )
+    return false
+  }
+  // 其他移动设备
+  else if (isMobile) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`📱 移动端复制尝试 ${attempt}/${maxRetries}`)
       
@@ -131,7 +173,7 @@ export const copyRetrieveLink = async (code: string, maxRetries: number = 3): Pr
       const success = await copyToClipboard(link, {
         successMsg: '✅ 取件链接已复制到剪贴板',
         errorMsg: ``,
-        showMsg: attempt === maxRetries // 只在最后一次失败时显示错误
+        showMsg: attempt === maxRetries // 最后一次尝试时显示错误，成功时copyToClipboard内部会显示成功消息
       })
       
       if (success) {
@@ -172,11 +214,13 @@ export const copyRetrieveCode = async (code: string): Promise<boolean> => {
 }
 
 /**
- * 改进的回退复制文本方法 - 增强移动端支持
+ * 改进的回退复制文本方法 - iOS Chrome优化支持
  * @param text 要复制的文本
  */
 async function fallbackCopyTextToClipboard(text: string): Promise<boolean> {
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const isIOSChrome = isIOS && /CriOS/i.test(navigator.userAgent)
   
   return new Promise((resolve) => {
     const textArea = document.createElement("textarea")
@@ -201,6 +245,13 @@ async function fallbackCopyTextToClipboard(text: string): Promise<boolean> {
       textArea.style.opacity = "0"
       textArea.style.pointerEvents = "none"
       textArea.readOnly = false // 确保可编辑
+      
+      // iOS Chrome特殊处理
+      if (isIOSChrome) {
+        textArea.style.position = "absolute" // iOS Chrome更喜欢absolute
+        textArea.style.zIndex = "9999" // 确保在最前面
+        textArea.contentEditable = 'true' // iOS Chrome需要这个
+      }
     }
     
     document.body.appendChild(textArea)
@@ -229,11 +280,14 @@ async function fallbackCopyTextToClipboard(text: string): Promise<boolean> {
         }
       }
       
-      // 增加延迟以确保选择完成
+      // 根据设备类型调整延迟
+      const delay = isIOSChrome ? 30 : (isMobile ? 50 : 10) // iOS Chrome需要适中的延迟
+      
       setTimeout(() => {
         try {
           const successful = document.execCommand("copy")
-          console.log(`execCommand 复制操作 ${successful ? "成功" : "失败"} (${isMobile ? '移动端' : '桌面端'})`)
+          const deviceType = isIOSChrome ? 'iOS Chrome' : (isMobile ? '移动端' : '桌面端')
+          console.log(`execCommand 复制操作 ${successful ? "成功" : "失败"} (${deviceType})`)
           resolve(successful)
         } catch (err) {
           console.error("execCommand 复制操作失败：", err)
@@ -245,7 +299,7 @@ async function fallbackCopyTextToClipboard(text: string): Promise<boolean> {
             console.warn('清理textArea失败:', e)
           }
         }
-      }, isMobile ? 50 : 10) // 移动端需要更长延迟
+      }, delay)
     } catch (err) {
       console.error("fallback复制准备失败：", err)
       try {

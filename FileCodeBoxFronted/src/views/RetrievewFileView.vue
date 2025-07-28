@@ -612,9 +612,32 @@ const audioObjectUrl = ref(null)
 // 检查是否为音频文件
 const isAudioFile = (filename) => {
   if (!filename) return false
-  const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm']
+  
+  // 扩展音频格式支持，包括移动端常见格式
+  const audioExtensions = [
+    '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', 
+    '.webm', '.mp4', '.3gp', '.amr', '.opus'
+  ]
+  
   const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'))
-  return audioExtensions.includes(ext)
+  const isAudio = audioExtensions.includes(ext)
+  
+  // 特殊处理：即使文件名没有音频扩展名，也要检查是否是音频内容
+  // 例如录制的音频可能被命名为其他格式
+  if (!isAudio && filename) {
+    // 检查文件名中是否包含音频相关关键词
+    const audioKeywords = ['录音', '音频', 'audio', 'voice', 'record', '🎵', '🎤']
+    const hasAudioKeyword = audioKeywords.some(keyword => 
+      filename.toLowerCase().includes(keyword.toLowerCase())
+    )
+    if (hasAudioKeyword) {
+      console.log('🎵 通过关键词检测到音频文件:', filename)
+      return true
+    }
+  }
+  
+  console.log(`🔍 文件格式检测: ${filename} -> ${isAudio ? '音频文件' : '非音频文件'}`)
+  return isAudio
 }
 
 // 格式化时间显示
@@ -719,18 +742,32 @@ const onAudioEnded = () => {
 const onAudioError = async (event) => {
   console.error('音频加载失败:', event)
   console.error('音频元素错误:', audioRef.value?.error)
+  console.error('当前音频URL:', audioRef.value?.src)
+  console.error('音频文件信息:', selectedRecord.value)
   
   // 如果还没有尝试过fetch方案，先尝试
   if (!audioObjectUrl.value && selectedRecord.value) {
-    console.log('尝试使用fetch方案重新加载音频')
+    console.log('🔄 尝试使用fetch方案重新加载音频')
     const success = await loadAudioWithFetch(getDownloadUrl(selectedRecord.value))
     if (success) {
       // 成功加载，不显示错误
+      console.log('✅ fetch方案加载成功')
       return
+    }
+    
+    // 如果fetch也失败，尝试不同的URL变体
+    console.log('🔄 尝试直接访问原始URL')
+    const originalUrl = selectedRecord.value.downloadUrl
+    if (originalUrl && originalUrl !== getDownloadUrl(selectedRecord.value)) {
+      const directSuccess = await loadAudioWithFetch(originalUrl)
+      if (directSuccess) {
+        console.log('✅ 直接URL访问成功')
+        return
+      }
     }
   }
   
-  // 如果fetch方案也失败了，才显示错误
+  // 如果所有方案都失败了，才显示错误
   audioError.value = true
   isPlaying.value = false
   
@@ -745,17 +782,22 @@ const onAudioError = async (event) => {
         errorMessage = '网络错误，无法加载音频'
         break
       case 3:
-        errorMessage = '音频解码失败，格式不支持'
+        errorMessage = '音频解码失败，可能是格式兼容性问题'
         break
       case 4:
-        errorMessage = '音频格式不受支持'
+        errorMessage = `音频格式不受支持 (${selectedRecord.value?.filename || '未知格式'})`
         break
       default:
         errorMessage = '未知音频错误'
     }
   }
   
-  alertStore.showAlert(errorMessage + '，请尝试直接下载', 'error')
+  // 针对webm格式提供特殊提示
+  if (selectedRecord.value?.filename?.toLowerCase().includes('.webm')) {
+    errorMessage += '\n\n💡 WebM音频在某些移动设备上可能不支持，建议直接下载'
+  }
+  
+  alertStore.showAlert(errorMessage + '\n\n请尝试直接下载音频文件', 'error', 8000)
 }
 </script>
 

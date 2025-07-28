@@ -874,21 +874,36 @@ const startRecording = async () => {
     }
     
     mediaRecorder.value.onstop = () => {
-      const recordedMimeType = mimeType || 'audio/webm'
-      audioBlob.value = new Blob(audioChunks.value, { type: recordedMimeType })
+      // 确定最终的录制格式
+      let finalMimeType = mimeType
+      
+      // 如果浏览器没有返回支持的格式，尝试检测实际录制的格式
+      if (!finalMimeType) {
+        // 检查实际使用的格式
+        if (mediaRecorder.value && mediaRecorder.value.mimeType) {
+          finalMimeType = mediaRecorder.value.mimeType
+          console.log('📋 检测到实际录制格式:', finalMimeType)
+        } else {
+          finalMimeType = 'audio/webm' // 最后的回退
+          console.log('⚠️ 使用默认格式: audio/webm')
+        }
+      }
+      
+      audioBlob.value = new Blob(audioChunks.value, { type: finalMimeType })
       audioBlobUrl.value = URL.createObjectURL(audioBlob.value)
       
-      // 根据录制的格式更新文件名后缀
-      updateAudioFileName(recordedMimeType)
+      // 根据实际录制的格式更新文件名后缀
+      updateAudioFileName(finalMimeType)
       
       // 停止所有音频轨道
       stream.getTracks().forEach(track => track.stop())
       
       // 显示录制完成的格式信息
       console.log('🎤 录制完成！')
-      console.log(`📁 文件格式: ${recordedMimeType}`)
+      console.log(`📁 最终文件格式: ${finalMimeType}`)
       console.log(`📏 文件大小: ${(audioBlob.value.size / 1024).toFixed(2)} KB`)
       console.log(`⏱️ 录制时长: ${recordingTime.value} 秒`)
+      console.log(`📝 文件名: ${audioFileName.value}`)
     }
     
     mediaRecorder.value.onerror = (event: Event) => {
@@ -1423,18 +1438,24 @@ const handleSubmit = async () => {
       }
       alertStore.showAlert(successMessage, 'success')
       
-      // 重置表单 - 只重置文件和文本内容,保留过期信息
-      selectedFile.value = null
-      textContent.value = ''
-      resetRecording()
-      uploadProgress.value = 0
-      
-      // 显示详情
+      // 显示详情（先显示，保持用户交互状态）
       selectedRecord.value = newRecord
       
       // 自动复制取件码链接，对移动端提供额外提示
       const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       const copySuccess = await copyRetrieveLink(retrieveCode)
+      
+      // 复制完成后再重置表单状态，避免影响用户激活状态
+      selectedFile.value = null
+      textContent.value = ''
+      uploadProgress.value = 0
+      
+      // 音频录制的重置放在复制成功后，确保不影响复制功能
+      if (sendType.value === 'audio') {
+        setTimeout(() => {
+          resetRecording()
+        }, 100) // 短暂延迟确保复制操作完成
+      }
       
       // 如果是移动端且复制失败，提供额外的操作指导
       if (isMobile && !copySuccess) {

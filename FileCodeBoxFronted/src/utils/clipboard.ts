@@ -26,18 +26,16 @@ export const copyToClipboard = async (
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   
   try {
-    // 增强移动端兼容性检查
+    // 优化移动端兼容性检查 - 放宽用户激活检查
     if (isMobile) {
-      // 检查用户激活状态
-      if (navigator.userActivation && !navigator.userActivation.isActive) {
-        if (showMsg) {
-          alertStore.showAlert('请重新点击按钮以激活复制功能', 'warning', 3000)
-        }
-        return false
+      // 只在严格必要时检查用户激活状态
+      if (navigator.userActivation && navigator.userActivation.hasBeenActive === false) {
+        console.warn('用户激活状态检查: 用户尚未激活页面')
+        // 不要直接返回失败，而是继续尝试其他方法
       }
       
-      // 检查安全上下文
-      if (!window.isSecureContext) {
+      // 检查安全上下文，但允许localhost开发环境
+      if (!window.isSecureContext && !location.hostname.includes('localhost') && !location.hostname.includes('127.0.0.1')) {
         if (showMsg) {
           alertStore.showAlert('需要HTTPS环境才能使用复制功能', 'error')
         }
@@ -45,19 +43,26 @@ export const copyToClipboard = async (
       }
     }
     
-    // 方案1: 现代 Clipboard API
+    // 方案1: 现代 Clipboard API - 增加重试机制
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try {
+        // 增加短暂延迟确保用户操作完成
+        await new Promise(resolve => setTimeout(resolve, 10))
         await navigator.clipboard.writeText(text)
         if (showMsg) alertStore.showAlert(successMsg, 'success')
         return true
-      } catch (clipboardErr) {
+      } catch (clipboardErr: any) {
         console.warn('Clipboard API 失败，尝试回退方案:', clipboardErr)
-        // 继续尝试其他方案
+        
+        // 如果是权限问题，在移动设备上给出更友好的提示
+        if (clipboardErr.name === 'NotAllowedError' && isMobile) {
+          console.log('移动端权限被拒绝，尝试fallback方法')
+          // 继续尝试其他方案，不直接失败
+        }
       }
     }
     
-    // 方案2: 改进的 execCommand 方法
+    // 方案2: 改进的 execCommand 方法 - 增强移动端处理
     const success = await fallbackCopyTextToClipboard(text)
     if (success) {
       if (showMsg) alertStore.showAlert(successMsg, 'success')
@@ -75,33 +80,50 @@ export const copyToClipboard = async (
   } catch (err) {
     console.error('复制失败:', err)
     
-    // 提供更详细的错误信息和解决方案
+    // 改进的错误处理 - 提供更好的用户体验
     let detailedErrorMsg = errorMsg
     
-    // 如果传入的text看起来像是一个完整的URL，直接显示
-    if (text.includes('://') || text.startsWith('/')) {
-      detailedErrorMsg = `${errorMsg}。链接：${text}`
+    if (isMobile) {
+      // 移动端专用的友好提示
+      if (text.includes('://') || text.startsWith('/')) {
+        detailedErrorMsg = `自动复制失败。请长按链接手动复制：${text}`
+      } else {
+        detailedErrorMsg = `自动复制失败。请长按取件码手动复制：${text}\n完整链接：${window.location.origin}/#/?code=${text}`
+      }
     } else {
-      // 如果只是取件码，则构造完整链接
-      detailedErrorMsg = `${errorMsg}。链接：${window.location.origin}/#/?code=${text}`
+      // 桌面端的错误提示
+      if (text.includes('://') || text.startsWith('/')) {
+        detailedErrorMsg = `${errorMsg}。链接：${text}`
+      } else {
+        detailedErrorMsg = `${errorMsg}。取件码：${text}\n完整链接：${window.location.origin}/#/?code=${text}`
+      }
     }
     
     if (showMsg) {
-      alertStore.showAlert(detailedErrorMsg, 'error', 6000)
+      alertStore.showAlert(detailedErrorMsg, 'warning', 8000) // 改为warning类型，时间更长
     }
     return false
   }
 }
 
 /**
- * 生成并复制取件链接
+ * 生成并复制取件链接 - 优化时机和重试机制
  * @param code 取件码
  * @returns Promise<boolean> 是否复制成功
  */
 export const copyRetrieveLink = async (code: string): Promise<boolean> => {
   const link = `${window.location.origin}/#/?code=${code}`
+  
+  // 检测移动设备
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  
+  // 移动端增加短暂延迟，确保用户操作完成
+  if (isMobile) {
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  
   return copyToClipboard(link, {
-    successMsg: '取件链接已复制到剪贴板',
+    successMsg: '✅ 取件链接已复制到剪贴板',
     errorMsg: `复制失败，请手动复制取件链接`
   })
 }
@@ -119,15 +141,17 @@ export const copyRetrieveCode = async (code: string): Promise<boolean> => {
 }
 
 /**
- * 改进的回退复制文本方法
+ * 改进的回退复制文本方法 - 增强移动端支持
  * @param text 要复制的文本
  */
 async function fallbackCopyTextToClipboard(text: string): Promise<boolean> {
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  
   return new Promise((resolve) => {
     const textArea = document.createElement("textarea")
     textArea.value = text
     
-    // 设置样式确保不影响布局
+    // 移动端优化的样式设置
     textArea.style.position = "fixed"
     textArea.style.top = "0"
     textArea.style.left = "0"
@@ -139,31 +163,66 @@ async function fallbackCopyTextToClipboard(text: string): Promise<boolean> {
     textArea.style.boxShadow = "none"
     textArea.style.background = "transparent"
     textArea.style.fontSize = "16px" // 防止iOS缩放
+    textArea.style.zIndex = "-1" // 确保不影响页面交互
+    
+    // 移动端专用样式
+    if (isMobile) {
+      textArea.style.opacity = "0"
+      textArea.style.pointerEvents = "none"
+      textArea.readOnly = false // 确保可编辑
+    }
     
     document.body.appendChild(textArea)
     
     try {
+      // 移动端需要更强制的焦点获取
+      if (isMobile) {
+        textArea.contentEditable = 'true'
+        textArea.readOnly = false
+      }
+      
       textArea.focus()
       textArea.select()
       
-      // 对于移动设备，使用 setSelectionRange
+      // 多次尝试选择文本，提高成功率
       if (textArea.setSelectionRange) {
         textArea.setSelectionRange(0, textArea.value.length)
       }
       
-      // 确保元素获得焦点
+      // 再次确保焦点
       if (document.activeElement !== textArea) {
         textArea.focus()
+        if (isMobile) {
+          // 移动端可能需要触发触摸事件
+          textArea.select()
+        }
       }
       
-      const successful = document.execCommand("copy")
-      console.log("execCommand 复制操作", successful ? "成功" : "失败")
-      resolve(successful)
+      // 增加延迟以确保选择完成
+      setTimeout(() => {
+        try {
+          const successful = document.execCommand("copy")
+          console.log(`execCommand 复制操作 ${successful ? "成功" : "失败"} (${isMobile ? '移动端' : '桌面端'})`)
+          resolve(successful)
+        } catch (err) {
+          console.error("execCommand 复制操作失败：", err)
+          resolve(false)
+        } finally {
+          try {
+            document.body.removeChild(textArea)
+          } catch (e) {
+            console.warn('清理textArea失败:', e)
+          }
+        }
+      }, isMobile ? 50 : 10) // 移动端需要更长延迟
     } catch (err) {
-      console.error("execCommand 复制操作失败：", err)
+      console.error("fallback复制准备失败：", err)
+      try {
+        document.body.removeChild(textArea)
+      } catch (e) {
+        console.warn('清理textArea失败:', e)
+      }
       resolve(false)
-    } finally {
-      document.body.removeChild(textArea)
     }
   })
 }

@@ -216,14 +216,17 @@
                   />
                 </div>
 
-                <!-- 录制控制按钮 -->
-                <div class="flex gap-3 mt-6" v-if="audioBlob">
+                <!-- 录制控制按钮 - 优化显示逻辑 -->
+                <div class="flex gap-3 mt-6" v-if="audioBlob && uploadProgress === 0">
                   <button
                     type="button"
                     @click="resetRecording"
-                    class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                    :class="[isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : '']"
+                    class="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                    :class="[isDarkMode ? 'bg-gray-700 text-gray-400 hover:bg-gray-600' : '']"
                   >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
                     重新录制
                   </button>
                 </div>
@@ -1444,8 +1447,17 @@ const handleSubmit = async () => {
       const retrieveCode = response.detail.code
       const fileName = response.detail.name
       
-      // 🚀 上传成功后立即复制链接，确保用户激活状态最佳
-      const copySuccess = await copyRetrieveLink(retrieveCode)
+      // 🚀 延迟复制链接，确保UI更新完成且用户激活状态最佳
+      setTimeout(async () => {
+        try {
+          const copySuccess = await copyRetrieveLink(retrieveCode)
+          if (!copySuccess) {
+            console.log('自动复制失败，用户可手动复制')
+          }
+        } catch (error) {
+          console.error('复制链接时发生错误:', error)
+        }
+      }, 200) // 延迟200ms执行复制
       
       // 根据不同类型计算大小和类型标识
       let size = ''

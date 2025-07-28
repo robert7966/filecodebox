@@ -213,6 +213,8 @@
                 @pause="onAudioPause"
                 @ended="onAudioEnded"
                 @error="onAudioError"
+                preload="metadata"
+                crossorigin="anonymous"
                 class="hidden"
               ></audio>
 
@@ -312,7 +314,7 @@
 </template>
 
 <script setup>
-import { ref, inject, onMounted, watch, computed } from 'vue'
+import { ref, inject, onMounted, watch, computed, onUnmounted } from 'vue'
 import {
   BoxIcon,
   EyeIcon,
@@ -369,6 +371,11 @@ onMounted(() => {
     code.value = query_code
   }
 })
+
+onUnmounted(() => {
+  // 清理音频资源
+  resetAudioState()
+})
 watch(code, (newVal) => {
   if (newVal.length === 5) {
     handleSubmit()
@@ -376,11 +383,19 @@ watch(code, (newVal) => {
 })
 
 const getDownloadUrl = (record) => {
+  let url = ''
   if (record.downloadUrl.startsWith('http')) {
-    return record.downloadUrl
+    url = record.downloadUrl
   } else {
-    return `${baseUrl}${record.downloadUrl}`
+    url = `${baseUrl}${record.downloadUrl}`
   }
+  
+  // 添加调试信息
+  console.log('音频文件URL:', url)
+  console.log('原始downloadUrl:', record.downloadUrl)
+  console.log('baseUrl:', baseUrl)
+  
+  return url
 }
 // 在其他代码后添加复制功能
 const copyContent = async () => {
@@ -433,9 +448,18 @@ const handleSubmit = async () => {
         
         if (isAudio) {
           // 音频文件直接显示详情并自动加载音频
-          setTimeout(() => {
+          setTimeout(async () => {
             if (audioRef.value) {
+              console.log('开始加载音频文件:', newFileData.filename)
               audioRef.value.load()
+              
+              // 如果10秒后仍未加载成功，尝试fetch方案
+              setTimeout(async () => {
+                if (audioError.value || duration.value === 0) {
+                  console.log('音频加载超时，尝试fetch方案')
+                  await loadAudioWithFetch(getDownloadUrl(newFileData))
+                }
+              }, 10000)
             }
           }, 100)
         } else if (!isFile) {
@@ -474,9 +498,18 @@ const viewDetails = (record) => {
   
   // 如果是音频文件，延迟加载音频
   if (record.isAudio) {
-    setTimeout(() => {
+    setTimeout(async () => {
       if (audioRef.value) {
+        console.log('重新加载音频文件:', record.filename)
         audioRef.value.load()
+        
+        // 如果10秒后仍未加载成功，尝试fetch方案
+        setTimeout(async () => {
+          if (audioError.value || duration.value === 0) {
+            console.log('音频加载超时，尝试fetch方案')
+            await loadAudioWithFetch(getDownloadUrl(record))
+          }
+        }, 10000)
       }
     }, 100)
   }
@@ -488,9 +521,16 @@ const resetAudioState = () => {
   currentTime.value = 0
   duration.value = 0
   audioError.value = false
+  
   if (audioRef.value) {
     audioRef.value.pause()
     audioRef.value.currentTime = 0
+  }
+  
+  // 清理对象URL
+  if (audioObjectUrl.value) {
+    URL.revokeObjectURL(audioObjectUrl.value)
+    audioObjectUrl.value = null
   }
 }
 
@@ -551,6 +591,7 @@ const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 const audioError = ref(false)
+const audioObjectUrl = ref(null)
 
 // 检查是否为音频文件
 const isAudioFile = (filename) => {
@@ -568,14 +609,60 @@ const formatTime = (seconds) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+// 加载音频的回退方案
+const loadAudioWithFetch = async (url) => {
+  try {
+    console.log('尝试使用fetch加载音频:', url)
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    const blob = await response.blob()
+    
+    // 清理之前的对象URL
+    if (audioObjectUrl.value) {
+      URL.revokeObjectURL(audioObjectUrl.value)
+    }
+    
+    audioObjectUrl.value = URL.createObjectURL(blob)
+    
+    if (audioRef.value) {
+      audioRef.value.src = audioObjectUrl.value
+      audioRef.value.load()
+    }
+    
+    console.log('音频通过fetch加载成功')
+    return true
+  } catch (error) {
+    console.error('fetch加载音频失败:', error)
+    return false
+  }
+}
+
 // 音频播放控制
-const toggleAudioPlayback = () => {
+const toggleAudioPlayback = async () => {
   if (!audioRef.value) return
   
   if (isPlaying.value) {
     audioRef.value.pause()
   } else {
-    audioRef.value.play()
+    try {
+      await audioRef.value.play()
+    } catch (error) {
+      console.error('播放失败，尝试重新加载:', error)
+      // 如果播放失败，尝试重新加载音频
+      const success = await loadAudioWithFetch(getDownloadUrl(selectedRecord.value))
+      if (success) {
+        setTimeout(async () => {
+          try {
+            await audioRef.value.play()
+          } catch (retryError) {
+            console.error('重试播放仍然失败:', retryError)
+            alertStore.showAlert('音频播放失败，请尝试直接下载', 'error')
+          }
+        }, 500)
+      }
+    }
   }
 }
 
@@ -584,6 +671,7 @@ const onAudioLoadedMetadata = () => {
   if (audioRef.value) {
     duration.value = audioRef.value.duration || 0
     audioError.value = false
+    console.log('音频元数据加载成功，时长:', duration.value)
   }
 }
 
@@ -595,10 +683,12 @@ const onAudioTimeUpdate = () => {
 
 const onAudioPlay = () => {
   isPlaying.value = true
+  console.log('音频开始播放')
 }
 
 const onAudioPause = () => {
   isPlaying.value = false
+  console.log('音频暂停播放')
 }
 
 const onAudioEnded = () => {
@@ -607,12 +697,49 @@ const onAudioEnded = () => {
   if (audioRef.value) {
     audioRef.value.currentTime = 0
   }
+  console.log('音频播放结束')
 }
 
-const onAudioError = () => {
+const onAudioError = async (event) => {
+  console.error('音频加载失败:', event)
+  console.error('音频元素错误:', audioRef.value?.error)
+  
+  // 如果还没有尝试过fetch方案，先尝试
+  if (!audioObjectUrl.value && selectedRecord.value) {
+    console.log('尝试使用fetch方案重新加载音频')
+    const success = await loadAudioWithFetch(getDownloadUrl(selectedRecord.value))
+    if (success) {
+      // 成功加载，不显示错误
+      return
+    }
+  }
+  
+  // 如果fetch方案也失败了，才显示错误
   audioError.value = true
   isPlaying.value = false
-  console.error('音频加载失败')
+  
+  // 提供更详细的错误信息
+  let errorMessage = '音频加载失败'
+  if (audioRef.value?.error) {
+    switch (audioRef.value.error.code) {
+      case 1:
+        errorMessage = '音频加载被中止'
+        break
+      case 2:
+        errorMessage = '网络错误，无法加载音频'
+        break
+      case 3:
+        errorMessage = '音频解码失败，格式不支持'
+        break
+      case 4:
+        errorMessage = '音频格式不受支持'
+        break
+      default:
+        errorMessage = '未知音频错误'
+    }
+  }
+  
+  alertStore.showAlert(errorMessage + '，请尝试直接下载', 'error')
 }
 </script>
 

@@ -65,7 +65,16 @@ export const copyToClipboard = async (
   } catch (err) {
     console.error('复制失败:', err)
     // 提供更详细的错误信息和解决方案
-    const detailedErrorMsg = `${errorMsg}。链接已生成：${window.location.origin}/#/?code=${text.includes('code=') ? text.split('code=')[1] : text}`
+    let detailedErrorMsg = errorMsg
+    
+    // 如果传入的text看起来像是一个完整的URL，直接显示
+    if (text.includes('://') || text.startsWith('/')) {
+      detailedErrorMsg = `${errorMsg}。链接：${text}`
+    } else {
+      // 如果只是取件码，则构造完整链接
+      detailedErrorMsg = `${errorMsg}。链接：${window.location.origin}/#/?code=${text}`
+    }
+    
     if (showMsg) alertStore.showAlert(detailedErrorMsg, 'error', 8000) // 8秒显示时间
     return false
   }

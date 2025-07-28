@@ -765,22 +765,28 @@ const sendRecords = computed(() => fileDataStore.shareData)
 
 const fileHash = ref('')
 
-// 检查手机Chrome录音兼容性
+// 检查设备音频录制兼容性，优先使用通用格式
 const getMimeTypeForDevice = () => {
+  // 重新排序，优先使用兼容性更好的格式
   const types = [
-    'audio/webm;codecs=opus',
-    'audio/mp4',
-    'audio/webm',
-    'audio/ogg;codecs=opus',
-    'audio/wav'
+    'audio/wav',                    // 最通用的格式
+    'audio/mp4',                    // 移动设备友好
+    'audio/webm',                   // Chrome 支持
+    'audio/ogg;codecs=opus',        // Firefox 支持  
+    'audio/webm;codecs=opus'        // 最新的压缩格式
   ]
   
+  console.log('检测音频格式支持:')
   for (const type of types) {
-    if (MediaRecorder.isTypeSupported(type)) {
+    const isSupported = MediaRecorder.isTypeSupported(type)
+    console.log(`${type}: ${isSupported ? '支持' : '不支持'}`)
+    if (isSupported) {
+      console.log(`选择音频格式: ${type}`)
       return type
     }
   }
   
+  console.log('未找到支持的音频格式，使用浏览器默认')
   // 如果都不支持，返回空字符串让浏览器自动选择
   return ''
 }

@@ -137,18 +137,32 @@
     </transition>
 
     <transition name="fade">
-      <div v-if="selectedRecord" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div v-if="selectedRecord" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div
-          class="p-8 rounded-2xl max-w-md w-full mx-4 shadow-2xl transform transition-all duration-300 ease-out backdrop-filter backdrop-blur-lg overflow-hidden"
+          class="rounded-2xl max-w-md w-full shadow-2xl transform transition-all duration-300 ease-out backdrop-filter backdrop-blur-lg max-h-[90vh] flex flex-col"
           :class="[
             isDarkMode 
               ? 'bg-gray-800 bg-opacity-70' 
               : 'bg-white bg-opacity-95'
           ]">
-          <h3 class="text-2xl font-bold mb-6 truncate" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
-            文件详情
-          </h3>
-          <div class="space-y-4">
+          <!-- 固定头部 -->
+          <div class="flex-shrink-0 flex justify-between items-center p-6 border-b" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
+            <h3 class="text-2xl font-bold truncate" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
+              文件详情
+            </h3>
+            <button @click="() => { resetAudioState(); selectedRecord = null }"
+              class="p-2 rounded-lg transition duration-300 hover:bg-opacity-10"
+              :class="[
+                isDarkMode 
+                  ? 'text-gray-400 hover:text-white hover:bg-white' 
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-black'
+              ]">
+              <XIcon class="w-6 h-6" />
+            </button>
+          </div>
+
+          <!-- 可滚动内容区域 -->
+          <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
             <div class="flex items-center">
               <FileIcon class="w-6 h-6 mr-3 flex-shrink-0"
                 :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']" />
@@ -244,24 +258,26 @@
                 </a>
               </div>
             </div>
+
+            <div class="mt-6 flex flex-col items-center">
+              <h4 class="text-lg font-semibold mb-3" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
+                取件二维码
+              </h4>
+              <div class="bg-white p-2 rounded-lg shadow-md">
+                <QRCode :value="getQRCodeValue(selectedRecord)" :size="128" level="M" />
+              </div>
+              <p class="mt-2 text-sm" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-600']">
+                扫描二维码快速取件
+              </p>
+            </div>
           </div>
 
-          <div class="mt-6 flex flex-col items-center">
-            <h4 class="text-lg font-semibold mb-3" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
-              取件二维码
-            </h4>
-            <div class="bg-white p-2 rounded-lg shadow-md">
-              <QRCode :value="getQRCodeValue(selectedRecord)" :size="128" level="M" />
-            </div>
-            <p class="mt-2 text-sm" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-600']">
-              扫描二维码快速取件
+          <!-- 固定底部区域（可选） -->
+          <div class="flex-shrink-0 p-6 border-t" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
+            <p class="text-center text-sm" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-600']">
+              点击右上角 ✕ 关闭窗口
             </p>
           </div>
-
-          <button @click="() => { resetAudioState(); selectedRecord = null }"
-            class="mt-8 w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 transform hover:scale-105">
-            关闭
-          </button>
         </div>
       </div>
     </transition>

@@ -170,7 +170,61 @@
                 <span class="font-medium">文件大小：</span>{{ selectedRecord.size }}
               </p>
             </div>
-            <div class="flex items-center">
+            <!-- 音频文件专用播放界面 -->
+            <div v-if="selectedRecord.isAudio" class="flex flex-col items-center py-6">
+              <h4 class="text-lg font-semibold mb-6" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
+                音频播放器
+              </h4>
+              
+              <!-- 圆形播放按钮 -->
+              <button
+                type="button"
+                @click="toggleAudioPlayback"
+                :disabled="audioError"
+                class="w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-lg hover:shadow-xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                :class="[
+                  isPlaying 
+                    ? 'bg-gradient-to-br from-green-500 to-green-600' 
+                    : 'bg-gradient-to-br from-indigo-500 to-indigo-600'
+                ]"
+              >
+                <PlayIcon v-if="!isPlaying" class="w-8 h-8 text-white ml-1" />
+                <PauseIcon v-else class="w-8 h-8 text-white" />
+              </button>
+
+              <!-- 时间显示 -->
+              <div class="text-lg font-mono font-bold mb-4" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-900']">
+                {{ formatTime(currentTime) }} / {{ formatTime(duration) }}
+              </div>
+
+              <!-- 错误提示 -->
+              <div v-if="audioError" class="text-red-500 text-sm mb-4">
+                音频加载失败，请尝试直接下载
+              </div>
+
+              <!-- 隐藏的音频元素 -->
+              <audio 
+                v-if="selectedRecord.downloadUrl"
+                ref="audioRef"
+                :src="getDownloadUrl(selectedRecord)"
+                @loadedmetadata="onAudioLoadedMetadata"
+                @timeupdate="onAudioTimeUpdate"
+                @play="onAudioPlay"
+                @pause="onAudioPause"
+                @ended="onAudioEnded"
+                @error="onAudioError"
+                class="hidden"
+              ></audio>
+
+              <!-- 下载按钮 -->
+              <a :href="getDownloadUrl(selectedRecord)" target="_blank" rel="noopener noreferrer"
+                class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition duration-300 text-sm">
+                下载音频文件
+              </a>
+            </div>
+
+            <!-- 非音频文件的原有界面 -->
+            <div v-else class="flex items-center">
               <DownloadIcon class="w-6 h-6 mr-3" :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']" />
               <p :class="[isDarkMode ? 'text-gray-300' : 'text-gray-800']">
                 <span class="font-medium">文件内容：</span>
@@ -202,7 +256,7 @@
             </p>
           </div>
 
-          <button @click="selectedRecord = null"
+          <button @click="() => { resetAudioState(); selectedRecord = null }"
             class="mt-8 w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 transform hover:scale-105">
             关闭
           </button>
@@ -271,7 +325,9 @@ import {
   CalendarIcon,
   HardDriveIcon,
   DownloadIcon,
-  CopyIcon
+  CopyIcon,
+  PlayIcon,
+  PauseIcon
 } from 'lucide-vue-next'
 import { useRouter, useRoute } from 'vue-router'
 import QRCode from 'qrcode.vue'
@@ -352,6 +408,7 @@ const handleSubmit = async () => {
     if (res.code === 200) {
       if (res.detail) {
         const isFile = res.detail.text.startsWith('/share/download') || res.detail.name !== 'Text'
+        const isAudio = isFile && isAudioFile(res.detail.name)
         const newFileData = {
           id: Date.now(),
           code: res.detail.code,
@@ -359,7 +416,8 @@ const handleSubmit = async () => {
           size: formatFileSize(res.detail.size),
           downloadUrl: isFile ? res.detail.text : null,
           content: isFile ? null : res.detail.text,
-          date: new Date().toLocaleString()
+          date: new Date().toLocaleString(),
+          isAudio: isAudio
         }
         let flag = true
         fileStore.receiveData.forEach((file) => {
@@ -370,12 +428,21 @@ const handleSubmit = async () => {
         if (flag) {
           fileStore.addReceiveData(newFileData)
         }
-        if (isFile) {
-          selectedRecord.value = newFileData
-        } else {
-          selectedRecord.value = newFileData
+        
+        selectedRecord.value = newFileData
+        
+        if (isAudio) {
+          // 音频文件直接显示详情并自动加载音频
+          setTimeout(() => {
+            if (audioRef.value) {
+              audioRef.value.load()
+            }
+          }, 100)
+        } else if (!isFile) {
+          // 文本内容显示预览
           showPreview.value = true
         }
+        
         alertStore.showAlert('文件获取成功', 'success')
       } else {
         alertStore.showAlert('无效的取件码', 'error')
@@ -402,7 +469,29 @@ const formatFileSize = (bytes) => {
 }
 
 const viewDetails = (record) => {
+  resetAudioState()
   selectedRecord.value = record
+  
+  // 如果是音频文件，延迟加载音频
+  if (record.isAudio) {
+    setTimeout(() => {
+      if (audioRef.value) {
+        audioRef.value.load()
+      }
+    }, 100)
+  }
+}
+
+// 重置音频状态
+const resetAudioState = () => {
+  isPlaying.value = false
+  currentTime.value = 0
+  duration.value = 0
+  audioError.value = false
+  if (audioRef.value) {
+    audioRef.value.pause()
+    audioRef.value.currentTime = 0
+  }
 }
 
 const deleteRecord = (id) => {
@@ -454,6 +543,76 @@ const renderedContent = computed(() => {
 
 const showContentPreview = () => {
   showPreview.value = true
+}
+
+// 音频播放相关状态
+const audioRef = ref(null)
+const isPlaying = ref(false)
+const currentTime = ref(0)
+const duration = ref(0)
+const audioError = ref(false)
+
+// 检查是否为音频文件
+const isAudioFile = (filename) => {
+  if (!filename) return false
+  const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm']
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'))
+  return audioExtensions.includes(ext)
+}
+
+// 格式化时间显示
+const formatTime = (seconds) => {
+  if (isNaN(seconds) || !isFinite(seconds)) return '00:00'
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+}
+
+// 音频播放控制
+const toggleAudioPlayback = () => {
+  if (!audioRef.value) return
+  
+  if (isPlaying.value) {
+    audioRef.value.pause()
+  } else {
+    audioRef.value.play()
+  }
+}
+
+// 音频事件处理
+const onAudioLoadedMetadata = () => {
+  if (audioRef.value) {
+    duration.value = audioRef.value.duration || 0
+    audioError.value = false
+  }
+}
+
+const onAudioTimeUpdate = () => {
+  if (audioRef.value) {
+    currentTime.value = audioRef.value.currentTime || 0
+  }
+}
+
+const onAudioPlay = () => {
+  isPlaying.value = true
+}
+
+const onAudioPause = () => {
+  isPlaying.value = false
+}
+
+const onAudioEnded = () => {
+  isPlaying.value = false
+  currentTime.value = 0
+  if (audioRef.value) {
+    audioRef.value.currentTime = 0
+  }
+}
+
+const onAudioError = () => {
+  audioError.value = true
+  isPlaying.value = false
+  console.error('音频加载失败')
 }
 </script>
 

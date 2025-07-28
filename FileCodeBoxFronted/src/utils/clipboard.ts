@@ -21,22 +21,41 @@ export const copyToClipboard = async (
 ): Promise<boolean> => {
   const { successMsg = '复制成功', errorMsg = '复制失败，请手动复制', showMsg = true } = options
   const alertStore = useAlertStore()
+  
   try {
-    // 优先使用 Clipboard API
-    if (document.hasFocus() && navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text)
-      if (showMsg) alertStore.showAlert(successMsg, 'success')
-      return true
+    // 优先尝试使用现代 Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text)
+        if (showMsg) alertStore.showAlert(successMsg, 'success')
+        return true
+      } catch (clipboardErr) {
+        console.warn('Clipboard API 失败，尝试回退方案:', clipboardErr)
+        // 如果 Clipboard API 失败，继续使用回退方案
+      }
     }
-    // 后备方案：使用传统的复制方法
+    
+    // 回退方案：使用传统的复制方法
     const textarea = document.createElement('textarea')
     textarea.value = text
     textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
     textarea.style.opacity = '0'
+    textarea.style.zIndex = '-1'
     document.body.appendChild(textarea)
+    
+    // 选择文本并尝试复制
+    textarea.focus()
     textarea.select()
+    
+    // 对于移动设备，使用 setSelectionRange
+    if (textarea.setSelectionRange) {
+      textarea.setSelectionRange(0, textarea.value.length)
+    }
+    
     const success = document.execCommand('copy')
     document.body.removeChild(textarea)
+    
     if (success) {
       if (showMsg) alertStore.showAlert(successMsg, 'success')
       return true
@@ -45,7 +64,9 @@ export const copyToClipboard = async (
     }
   } catch (err) {
     console.error('复制失败:', err)
-    if (showMsg) alertStore.showAlert(errorMsg, 'error')
+    // 提供更详细的错误信息和解决方案
+    const detailedErrorMsg = `${errorMsg}。链接已生成：${window.location.origin}/#/?code=${text.includes('code=') ? text.split('code=')[1] : text}`
+    if (showMsg) alertStore.showAlert(detailedErrorMsg, 'error', 8000) // 8秒显示时间
     return false
   }
 }
@@ -59,7 +80,7 @@ export const copyRetrieveLink = async (code: string): Promise<boolean> => {
   const link = `${window.location.origin}/#/?code=${code}`
   return copyToClipboard(link, {
     successMsg: '取件链接已复制到剪贴板',
-    errorMsg: '复制失败，请手动复制取件链接'
+    errorMsg: `复制失败，请手动复制取件链接`
   })
 }
 
@@ -75,43 +96,48 @@ export const copyRetrieveCode = async (code: string): Promise<boolean> => {
   })
 }
 
-const baseUrl = window.location.origin + '/';
+/**
+ * 回退复制文本方法
+ * @param text 要复制的文本
+ */
+function fallbackCopyTextToClipboard(text: string) {
+  const textArea = document.createElement("textarea")
+  textArea.value = text
+  textArea.style.position = "fixed"
+  textArea.style.left = "-9999px"
+  textArea.style.opacity = "0"
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+  
+  try {
+    const successful = document.execCommand("copy")
+    console.log("回退复制操作", successful ? "成功" : "失败")
+    return successful
+  } catch (err) {
+    console.error("回退复制操作失败：", err)
+    return false
+  } finally {
+    document.body.removeChild(textArea)
+  }
+}
+
+const baseUrl = window.location.origin + '/'
 
 export const copyWgetCommand = (retrieveCode: string, fileName: string) => {
-  const command = `wget ${baseUrl}share/select?code=${retrieveCode} -O "${fileName}"`;
+  const command = `wget ${baseUrl}share/select?code=${retrieveCode} -O "${fileName}"`
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(command)
       .then(() => {
-        console.log("命令已复制到剪贴板！");
+        console.log("命令已复制到剪贴板！")
       })
       .catch((err) => {
-        console.error("复制失败，使用回退方法：", err);
-        fallbackCopyTextToClipboard(command);
-      });
+        console.error("复制失败，使用回退方法：", err)
+        fallbackCopyTextToClipboard(command)
+      })
   } else {
-    console.warn("Clipboard API 不可用，使用回退方法。");
-    fallbackCopyTextToClipboard(command);
+    console.warn("Clipboard API 不可用，使用回退方法。")
+    fallbackCopyTextToClipboard(command)
   }
-};
-function fallbackCopyTextToClipboard(text:string) {
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.style.position = "fixed"; // 避免滚动
-  document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
-  try {
-    const successful = document.execCommand("copy");
-    console.log("回退复制操作成功：", successful);
-  } catch (err) {
-    console.error("回退复制操作失败：", err);
-  }
-  document.body.removeChild(textArea);
-}
-
-if (document.hasFocus() && navigator.clipboard && navigator.clipboard.writeText) {
-  navigator.clipboard.writeText("要复制的文本");
-} else {
-  fallbackCopyTextToClipboard("要复制的文本");
 }

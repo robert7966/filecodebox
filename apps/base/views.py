@@ -33,6 +33,7 @@ async def share_text(
         text: str = Form(...),
         expire_value: int = Form(default=1, gt=0),
         expire_style: str = Form(default="day"),
+        code: str = Form(default=None),  # 添加可选的预定义取件码
         ip: str = Depends(ip_limit["upload"]),
 ):
     text_size = len(text.encode("utf-8"))
@@ -40,8 +41,12 @@ async def share_text(
     if text_size > max_txt_size:
         raise HTTPException(status_code=403, detail="内容过多,建议采用文件形式")
 
+    # 如果提供了预定义取件码，验证其是否已存在
+    if code and await FileCodes.filter(code=code).exists():
+        raise HTTPException(status_code=400, detail="取件码已存在，请重新生成")
+
     expired_at, expired_count, used_count, code = await get_expire_info(
-        expire_value, expire_style
+        expire_value, expire_style, code
     )
     await create_file_code(
         code=code,
@@ -61,12 +66,18 @@ async def share_file(
         expire_value: int = Form(default=1, gt=0),
         expire_style: str = Form(default="day"),
         file: UploadFile = File(...),
+        code: str = Form(default=None),  # 添加可选的预定义取件码
         ip: str = Depends(ip_limit["upload"]),
 ):
     await validate_file_size(file, settings.uploadSize)
     if expire_style not in settings.expireStyle:
         raise HTTPException(status_code=400, detail="过期时间类型错误")
-    expired_at, expired_count, used_count, code = await get_expire_info(expire_value, expire_style)
+    
+    # 如果提供了预定义取件码，验证其是否已存在
+    if code and await FileCodes.filter(code=code).exists():
+        raise HTTPException(status_code=400, detail="取件码已存在，请重新生成")
+    
+    expired_at, expired_count, used_count, code = await get_expire_info(expire_value, expire_style, code)
     path, suffix, prefix, uuid_file_name, save_path = await get_file_path_name(file)
     file_storage: FileStorageInterface = storages[settings.file_storage]()
     await file_storage.save_file(file, save_path)
@@ -93,6 +104,7 @@ async def share_audio_recording(
     format: str = Form(default="webm"),
     expire_value: int = Form(default=1, gt=0),
     expire_style: str = Form(default="day"),
+    code: str = Form(default=None),  # 添加可选的预定义取件码
     ip: str = Depends(ip_limit["upload"]),
 ):
     """
@@ -111,8 +123,12 @@ async def share_audio_recording(
     if expire_style not in settings.expireStyle:
         raise HTTPException(status_code=400, detail="过期时间类型错误")
     
+    # 如果提供了预定义取件码，验证其是否已存在
+    if code and await FileCodes.filter(code=code).exists():
+        raise HTTPException(status_code=400, detail="取件码已存在，请重新生成")
+    
     # 获取过期信息和生成分享码
-    expired_at, expired_count, used_count, code = await get_expire_info(expire_value, expire_style)
+    expired_at, expired_count, used_count, code = await get_expire_info(expire_value, expire_style, code)
     
     # 处理音频文件路径和命名
     path, suffix, prefix, uuid_file_name, save_path = await get_audio_file_path_name(
@@ -332,6 +348,10 @@ async def complete_upload(upload_id: str, data: CompleteUploadModel, ip: str = D
     if not chunk_info:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="上传会话不存在")
 
+    # 如果提供了预定义取件码，验证其是否已存在
+    if data.code and await FileCodes.filter(code=data.code).exists():
+        raise HTTPException(status_code=400, detail="取件码已存在，请重新生成")
+
     storage = storages[settings.file_storage]()
     # 验证所有分片
     completed_chunks = await UploadChunk.filter(
@@ -345,7 +365,7 @@ async def complete_upload(upload_id: str, data: CompleteUploadModel, ip: str = D
     # 合并文件并计算哈希
     await storage.merge_chunks(upload_id, chunk_info, save_path)
     # 创建文件记录
-    expired_at, expired_count, used_count, code = await get_expire_info(data.expire_value, data.expire_style)
+    expired_at, expired_count, used_count, code = await get_expire_info(data.expire_value, data.expire_style, data.code)
     await FileCodes.create(
         code=code,
         file_hash=chunk_info.chunk_hash,

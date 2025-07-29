@@ -41,7 +41,7 @@ async def get_chunk_file_path_name(file_name: str, upload_id: str) -> Tuple[str,
     return path, suffix, prefix, file_name, save_path
 
 
-async def get_expire_info(expire_value: int, expire_style: str) -> Tuple[Optional[datetime.datetime], int, int, str]:
+async def get_expire_info(expire_value: int, expire_style: str, predefined_code: str = None) -> Tuple[Optional[datetime.datetime], int, int, str]:
     """获取过期信息"""
     expired_count, used_count = -1, 0
     now = datetime.datetime.now()
@@ -74,7 +74,7 @@ async def get_expire_info(expire_value: int, expire_style: str) -> Tuple[Optiona
             if expire_style == "count":
                 expired_count = extra
             elif expire_style == "forever":
-                code = await get_random_code(style="string")  # 移动到这里
+                code = predefined_code if predefined_code else await get_random_code(style="string")  # 移动到这里
         else:
             expired_at = result
         if expired_at and expired_at - now > max_timedelta:
@@ -83,7 +83,7 @@ async def get_expire_info(expire_value: int, expire_style: str) -> Tuple[Optiona
         expired_at = now + datetime.timedelta(days=1)
 
     if not code:
-        code = await get_random_code()
+        code = predefined_code if predefined_code else await get_random_code()
 
     return expired_at, expired_count, used_count, code
 

@@ -15,6 +15,7 @@ class InitChunkUploadModel(BaseModel):
 class CompleteUploadModel(BaseModel):
     expire_value: int
     expire_style: str
+    code: str = None  # 可选的预定义取件码
 
 
 class AudioRecordingModel(BaseModel):

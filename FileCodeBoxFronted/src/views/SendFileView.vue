@@ -727,8 +727,7 @@ const audioBlob = ref<Blob | null>(null)
 const audioBlobUrl = ref<string>('')
 const audioFileName = ref('我的录音')
 const audioActualMimeType = ref<string>('') // 🎯 存储实际录制的MIME类型
-// 追踪是否需要在获得取件码后立即复制（音频录制完成时设置）
-const shouldAutoCopyAfterUpload = ref(false)
+// 🎯 旧的自动复制逻辑已移除，现在使用提前复制策略
 const mediaRecorder = ref<MediaRecorder | null>(null)
 const recordingStartTime = ref<number>(0)
 const recordingTimer = ref<number | null>(null)
@@ -747,6 +746,26 @@ const isAudioSupported = computed(() => {
   
   return hasMediaDevices && hasMediaRecorder && isSecureContext
 })
+
+// 🎯 前端取件码生成函数
+const generateRetrieveCode = (): string => {
+  // 检查过期方式决定生成类型
+  if (expirationMethod.value === 'forever') {
+    // 永久保存使用字符串格式
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    let result = ''
+    for (let i = 0; i < 5; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return result
+  } else {
+    // 其他情况使用5位数字
+    return Math.floor(10000 + Math.random() * 90000).toString()
+  }
+}
+
+// 🎯 提前生成的取件码
+const preGeneratedCode = ref<string>('')
 
 // 提交按钮状态 - 录制时禁用
 const canSubmit = computed(() => {
@@ -849,8 +868,6 @@ const toggleRecording = async () => {
 
 const startRecording = async () => {
   try {
-    // 开始新录制时，重置自动复制标志
-    shouldAutoCopyAfterUpload.value = false
     
     // 检查权限状态 (在支持的浏览器中)
     if (navigator.permissions) {
@@ -926,9 +943,7 @@ const startRecording = async () => {
       console.log(`⏱️ 录制时长: ${recordingTime.value} 秒`)
       console.log(`📝 文件名: ${audioFileName.value}`)
       
-      // 🎯 录制完成时，标记需要在上传成功后立即复制（移动端优化）
-      shouldAutoCopyAfterUpload.value = true
-      console.log('📋 已设置自动复制标志，将在上传成功后立即复制链接')
+      // 🎯 录制完成，准备使用新的提前复制策略
     }
     
     mediaRecorder.value.onerror = (event: Event) => {
@@ -997,9 +1012,8 @@ const resetRecording = () => {
   // 重置文件名为默认值
   audioFileName.value = '我的录音'
   
-  // 🎯 重置保存的MIME类型和自动复制标志
+  // 🎯 重置保存的MIME类型
   audioActualMimeType.value = ''
-  shouldAutoCopyAfterUpload.value = false
   
   if (recordingTimer.value) {
     clearInterval(recordingTimer.value)
@@ -1253,7 +1267,8 @@ const handleChunkUpload = async (file: File) => {
     // 3. 完成上传
     const completeResponse: any = await api.post(`chunk/upload/complete/${uploadId}`, {
       expire_value: expirationValue.value ? parseInt(expirationValue.value) : 1,
-      expire_style: expirationMethod.value
+      expire_style: expirationMethod.value,
+      code: preGeneratedCode.value // 🎯 传递预生成的取件码
     })
 
     if (completeResponse.code !== 200) {
@@ -1287,6 +1302,7 @@ const handleDefaultFileUpload = async (file: File) => {
   formData.append('file', file)
   formData.append('expire_value', expirationValue.value)
   formData.append('expire_style', expirationMethod.value)
+  formData.append('code', preGeneratedCode.value) // 🎯 传递预生成的取件码
   const response: any = await api.post('share/file/', formData, config)
   return response
 }
@@ -1343,6 +1359,7 @@ const handleAudioUpload = async () => {
     formData.append('format', formatParam) // 🎯 使用实际格式而非硬编码webm
     formData.append('expire_value', expirationValue.value)
     formData.append('expire_style', expirationMethod.value)
+    formData.append('code', preGeneratedCode.value) // 🎯 传递预生成的取件码
 
     const response: any = await api.post('share/audio/', formData, {
       headers: {
@@ -1435,6 +1452,27 @@ const handleSubmit = async () => {
     return
   }
 
+  // 🎯 提前生成取件码并立即复制链接（用户激活状态最强时）
+  preGeneratedCode.value = generateRetrieveCode()
+  const retrieveLink = `${window.location.origin}/#/?code=${preGeneratedCode.value}`
+  
+  console.log(`🎯 提前生成取件码: ${preGeneratedCode.value}`)
+  console.log(`🔗 提前生成链接: ${retrieveLink}`)
+  
+  // 🎯 立即尝试复制链接（用户激活状态最佳时机）
+  let copySuccess = false
+  try {
+    copySuccess = await copyRetrieveLink(preGeneratedCode.value, 1) // 只尝试1次，因为时机最佳
+    if (copySuccess) {
+      console.log('✅ 提交时立即复制成功')
+    } else {
+      console.log('❌ 提交时立即复制失败，将在后续提供备用方案')
+    }
+  } catch (error) {
+    console.error('复制链接时发生错误:', error)
+    copySuccess = false
+  }
+
   try {
     let response: any
 
@@ -1451,6 +1489,7 @@ const handleSubmit = async () => {
       formData.append('text', textContent.value)
       formData.append('expire_value', expirationValue.value)
       formData.append('expire_style', expirationMethod.value)
+      formData.append('code', preGeneratedCode.value) // 🎯 传递预生成的取件码
       response = await api.post('share/text/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -1462,48 +1501,23 @@ const handleSubmit = async () => {
     }
 
     if (response && response.code === 200) {
-      const retrieveCode = response.detail.code
+      const retrieveCode = preGeneratedCode.value // 🎯 使用预生成的取件码
       const fileName = response.detail.name
       
-      // 🚀 统一复制策略：所有类型都尝试自动复制，针对iOS优化
-      console.log(`📋 开始执行${sendType.value}类型的自动复制`)
+      // 🎯 检查提交时的复制是否成功，如果失败则提供备用方案
+      console.log(`📋 ${sendType.value}上传成功，检查复制状态`)
       
-      try {
-        let copySuccess = false
+      if (!copySuccess) {
+        // 如果之前的复制失败，显示带有完整链接的提示
+        console.log('❌ 提交时复制失败，显示备用方案')
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        const isIOSChrome = /iPhone|iPad|iPod/i.test(navigator.userAgent) && /CriOS/i.test(navigator.userAgent)
         
-        if (sendType.value === 'audio') {
-          // 音频：使用特殊的重试策略
-          console.log('🎵 音频上传成功，开始执行自动复制')
-          copySuccess = await copyRetrieveLink(retrieveCode, 2) // 音频减少重试次数，因为时机更好
-          if (copySuccess) {
-            console.log('✅ 音频录制后自动复制成功')
-          } else {
-            console.log('❌ 音频录制后自动复制失败，已提供手动复制方案')
-          }
-          // 重置标志
-          shouldAutoCopyAfterUpload.value = false
-        } else if (sendType.value === 'file') {
-          // 文件：立即尝试复制，iOS Chrome兼容性处理
-          console.log('📁 文件上传成功，开始执行自动复制')
-          copySuccess = await copyRetrieveLink(retrieveCode, 3) // 文件上传后可能需要更多重试
-          if (copySuccess) {
-            console.log('✅ 文件上传后自动复制成功')
-          } else {
-            console.log('❌ 文件上传后自动复制失败，已提供手动复制方案')
-          }
-        } else if (sendType.value === 'text') {
-          // 文本：最佳时机，iOS Chrome通常支持良好
-          console.log('📝 文本发送成功，开始执行自动复制')
-          copySuccess = await copyRetrieveLink(retrieveCode, 1) // 文本只需1次尝试通常就能成功
-          if (copySuccess) {
-            console.log('✅ 文本发送后自动复制成功')
-          } else {
-            console.log('❌ 文本发送后自动复制失败，已提供手动复制方案')
-          }
+        if (isMobile || isIOSChrome) {
+          console.log('📱 移动端备用方案：显示详细复制信息')
         }
-        
-      } catch (error) {
-        console.error('复制链接时发生错误:', error)
+      } else {
+        console.log('✅ 提交时复制成功，无需额外操作')
       }
       
       // 根据不同类型计算大小和类型标识
@@ -1536,39 +1550,36 @@ const handleSubmit = async () => {
       }
       fileDataStore.addShareData(newRecord)
 
-      // 显示发送成功消息 - 针对iOS Chrome优化
+      // 🎯 显示发送成功消息 - 根据复制状态优化
       const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       const isIOSChrome = /iPhone|iPad|iPod/i.test(navigator.userAgent) && /CriOS/i.test(navigator.userAgent)
       
       let successMessage = ''
       let displayTime = 4000 // 默认显示时间
       
-      if (sendType.value === 'audio') {
-        if (isMobile && !shouldAutoCopyAfterUpload.value) {
-          // 移动端且自动复制失败时，显示可点击的链接
-          successMessage = `🎵 音频发送成功！\n⏱️ 时长: ${formatTime(recordingTime.value)}\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}`
+      if (copySuccess) {
+        // 🎯 复制成功的情况 - 简洁提示
+        if (sendType.value === 'audio') {
+          successMessage = `🎵 音频发送成功！时长: ${formatTime(recordingTime.value)}，取件码：${retrieveCode}\n📋 链接已复制到剪贴板`
+          displayTime = 5000
+        } else if (sendType.value === 'file') {
+          successMessage = `📁 文件发送成功！取件码：${retrieveCode}\n📋 链接已复制到剪贴板`
+          displayTime = 5000
+        } else if (sendType.value === 'text') {
+          successMessage = `📝 文本发送成功！取件码：${retrieveCode}\n📋 链接已复制到剪贴板`
+          displayTime = 5000
+        }
+      } else {
+        // 🎯 复制失败的情况 - 详细信息
+        if (sendType.value === 'audio') {
+          successMessage = `🎵 音频发送成功！\n⏱️ 时长: ${formatTime(recordingTime.value)}\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}\n💡 请手动选择并复制上方链接`
+          displayTime = 12000
+        } else if (sendType.value === 'file') {
+          successMessage = `📁 文件发送成功！\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}\n💡 请手动选择并复制上方链接`
           displayTime = 10000
-        } else {
-          successMessage = `🎵 音频发送成功！时长: ${formatTime(recordingTime.value)}，取件码：${retrieveCode}`
-          displayTime = isMobile ? 6000 : 4000
-        }
-      } else if (sendType.value === 'file') {
-        if (isIOSChrome) {
-          // iOS Chrome用户需要更详细的信息
-          successMessage = `📁 文件发送成功！\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}`
-          displayTime = 8000
-        } else {
-          successMessage = `📁 文件发送成功！取件码：${retrieveCode}`
-          displayTime = isMobile ? 6000 : 4000
-        }
-      } else if (sendType.value === 'text') {
-        if (isIOSChrome) {
-          // iOS Chrome用户需要更详细的信息  
-          successMessage = `📝 文本发送成功！\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}`
-          displayTime = 8000
-        } else {
-          successMessage = `📝 文本发送成功！取件码：${retrieveCode}`
-          displayTime = isMobile ? 6000 : 4000
+        } else if (sendType.value === 'text') {
+          successMessage = `📝 文本发送成功！\n📋 取件码：${retrieveCode}\n🔗 完整链接：${window.location.origin}/#/?code=${retrieveCode}\n💡 请手动选择并复制上方链接`
+          displayTime = 10000
         }
       }
       
@@ -1581,6 +1592,7 @@ const handleSubmit = async () => {
       selectedFile.value = null
       textContent.value = ''
       uploadProgress.value = 0
+      preGeneratedCode.value = '' // 🎯 重置预生成的取件码
       
       // 音频特定的资源清理延迟处理
       if (sendType.value === 'audio') {

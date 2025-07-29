@@ -450,7 +450,10 @@ const handleSubmit = async () => {
           downloadUrl: isFile ? res.detail.text : null,
           content: isFile ? null : res.detail.text,
           date: new Date().toLocaleString(),
-          isAudio: isAudio
+          isAudio: isAudio,
+          // 🎯 保存后端返回的音频时长和格式信息
+          duration: res.detail.duration || 0,
+          format: res.detail.format || null
         }
         let flag = true
         fileStore.receiveData.forEach((file) => {
@@ -465,17 +468,31 @@ const handleSubmit = async () => {
         selectedRecord.value = newFileData
         
         if (isAudio) {
+          // 🎯 优先使用后端返回的音频时长信息
+          if (newFileData.duration && newFileData.duration > 0) {
+            duration.value = newFileData.duration
+            console.log('✅ 使用后端返回的音频时长:', duration.value, '秒')
+            console.log('🕒 格式化显示:', formatTime(duration.value))
+          }
+          
           // 音频文件直接显示详情并自动加载音频
           setTimeout(async () => {
             if (audioRef.value) {
               console.log('🎵 开始加载音频文件:', newFileData.filename)
               console.log('🔗 音频URL:', getDownloadUrl(newFileData))
+              console.log('📏 预设时长:', newFileData.duration, '秒')
               
               // 添加临时事件监听器检测加载状态
               let metadataLoaded = false
               const tempMetadataHandler = () => {
                 metadataLoaded = true
                 console.log('✅ 初始加载元数据成功')
+                // 如果后端时长为0，才使用浏览器解析的时长
+                if ((!newFileData.duration || newFileData.duration === 0) && 
+                    audioRef.value && isFinite(audioRef.value.duration)) {
+                  duration.value = audioRef.value.duration
+                  console.log('🔄 使用浏览器解析的时长:', duration.value)
+                }
               }
               
               audioRef.value.addEventListener('loadedmetadata', tempMetadataHandler, { once: true })
@@ -485,7 +502,9 @@ const handleSubmit = async () => {
               setTimeout(async () => {
                 audioRef.value?.removeEventListener('loadedmetadata', tempMetadataHandler)
                 
-                if (!metadataLoaded || audioError.value || duration.value === 0) {
+                // 只有在没有预设时长且浏览器也无法解析时，才使用fetch方案
+                if (!metadataLoaded || audioError.value || 
+                    ((!newFileData.duration || newFileData.duration === 0) && duration.value === 0)) {
                   console.log('⚠️ 初始加载失败，切换到fetch方案')
                   console.log('状态: metadataLoaded=', metadataLoaded, 'audioError=', audioError.value, 'duration=', duration.value)
                   await loadAudioWithFetch(getDownloadUrl(newFileData))
@@ -703,16 +722,24 @@ const loadAudioWithFetch = async (url) => {
       // 添加一次性事件监听器来确保元数据加载
       const handleMetadataLoaded = () => {
         console.log('🎯 fetch方案触发元数据加载')
-        if (audioRef.value && isFinite(audioRef.value.duration)) {
+        // 🎯 优先保持后端返回的时长
+        const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+        
+        if (!hasBackendDuration && audioRef.value && isFinite(audioRef.value.duration)) {
           duration.value = audioRef.value.duration
           console.log('✅ fetch方案获取时长成功:', duration.value)
+        } else if (hasBackendDuration) {
+          console.log('🎯 fetch方案保持后端时长:', duration.value)
         }
         audioRef.value?.removeEventListener('loadedmetadata', handleMetadataLoaded)
       }
       
       const handleCanPlay = () => {
         console.log('🎯 fetch方案音频可播放')
-        if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+        // 🎯 优先保持后端返回的时长
+        const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+        
+        if (!hasBackendDuration && audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
           duration.value = audioRef.value.duration
           console.log('✅ canplay事件获取时长:', duration.value)
         }
@@ -727,13 +754,18 @@ const loadAudioWithFetch = async (url) => {
       
       // 给更多时间加载元数据
       setTimeout(() => {
-        if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+        // 🎯 优先保持后端返回的时长
+        const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+        
+        if (!hasBackendDuration && audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
           duration.value = audioRef.value.duration
           console.log('⏰ 延迟检查获取时长:', duration.value)
-        } else if (duration.value === 0) {
+        } else if (!hasBackendDuration && duration.value === 0) {
           // 最后的兜底方案：使用临时Audio对象检测时长
           console.log('🔧 尝试兜底方案检测时长')
           detectAudioDurationFallback(audioObjectUrl.value)
+        } else if (hasBackendDuration) {
+          console.log('🎯 延迟检查保持后端时长:', duration.value)
         }
       }, 2000)
     }
@@ -782,20 +814,30 @@ const onAudioLoadedMetadata = () => {
     console.log('🔍 duration类型:', typeof audioDuration)
     console.log('✅ isFinite check:', isFinite(audioDuration))
     
+    // 🎯 如果已经有后端返回的时长且大于0，则不覆盖
+    const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+    
     if (isFinite(audioDuration) && audioDuration > 0) {
-      duration.value = audioDuration
+      if (!hasBackendDuration) {
+        // 只有在没有后端时长时才使用浏览器解析的时长
+        duration.value = audioDuration
+        console.log('✅ 使用浏览器解析的音频时长:', duration.value, '秒')
+      } else {
+        console.log('🎯 保持后端返回的时长:', duration.value, '秒，忽略浏览器时长:', audioDuration)
+      }
       audioError.value = false
-      console.log('✅ 音频时长设置成功:', duration.value, '秒')
-      console.log('🕒 格式化显示:', formatTime(duration.value))
+      console.log('🕒 最终显示时长:', formatTime(duration.value))
     } else {
       console.warn('⚠️ 音频时长无效:', audioDuration)
-      // 尝试强制重新加载元数据
-      setTimeout(() => {
-        if (audioRef.value && audioRef.value.duration) {
-          duration.value = audioRef.value.duration
-          console.log('🔄 延迟获取时长成功:', duration.value)
-        }
-      }, 1000)
+      // 只有在没有后端时长时才尝试重新获取
+      if (!hasBackendDuration) {
+        setTimeout(() => {
+          if (audioRef.value && audioRef.value.duration) {
+            duration.value = audioRef.value.duration
+            console.log('🔄 延迟获取时长成功:', duration.value)
+          }
+        }, 1000)
+      }
     }
   }
 }
@@ -826,14 +868,20 @@ const onAudioEnded = () => {
 }
 
 const onAudioLoadedData = () => {
-  if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+  // 🎯 优先保持后端返回的时长
+  const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+  
+  if (!hasBackendDuration && audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
     duration.value = audioRef.value.duration
     console.log('🔄 loadeddata事件获取时长:', duration.value)
   }
 }
 
 const onAudioCanPlay = () => {
-  if (audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
+  // 🎯 优先保持后端返回的时长
+  const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+  
+  if (!hasBackendDuration && audioRef.value && isFinite(audioRef.value.duration) && duration.value === 0) {
     duration.value = audioRef.value.duration
     console.log('🔄 canplay事件获取时长:', duration.value)
   }
@@ -914,9 +962,14 @@ const detectAudioDurationFallback = (audioUrl) => {
   }
   
   const handleTempLoadedMetadata = () => {
-    if (isFinite(tempAudio.duration) && tempAudio.duration > 0) {
+    // 🎯 优先保持后端返回的时长
+    const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+    
+    if (!hasBackendDuration && isFinite(tempAudio.duration) && tempAudio.duration > 0) {
       duration.value = tempAudio.duration
       console.log('✅ 兜底方案获取时长成功:', duration.value)
+    } else if (hasBackendDuration) {
+      console.log('🎯 兜底方案保持后端时长:', duration.value)
     } else {
       console.warn('⚠️ 兜底方案获取的时长无效:', tempAudio.duration)
     }
@@ -924,7 +977,10 @@ const detectAudioDurationFallback = (audioUrl) => {
   }
   
   const handleTempCanPlay = () => {
-    if (isFinite(tempAudio.duration) && tempAudio.duration > 0 && duration.value === 0) {
+    // 🎯 优先保持后端返回的时长
+    const hasBackendDuration = selectedRecord.value?.duration && selectedRecord.value.duration > 0
+    
+    if (!hasBackendDuration && isFinite(tempAudio.duration) && tempAudio.duration > 0 && duration.value === 0) {
       duration.value = tempAudio.duration
       console.log('✅ 兜底方案通过canplay获取时长:', duration.value)
     }

@@ -54,7 +54,8 @@
                 sendType === 'audio' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300'
               ]"
             >
-              音频录制
+<!--              音频录制-->
+              发送语音
             </button>
             <!-- <button
               type="button"
@@ -145,17 +146,17 @@
                 </div>
 
                 <!-- 手机录音指导 -->
-                <div v-if="isAudioSupported" class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div class="text-blue-800 text-sm space-y-2">
-                    <p class="font-medium">📱 手机录音提示：</p>
-                    <ul class="list-disc list-inside space-y-1 text-left">
-                      <li>确保网站使用HTTPS协议</li>
-                      <li>点击录音按钮时允许麦克风权限</li>
-                      <li>如果权限被拒绝，点击地址栏的🔒或🎤图标重新授权</li>
-                      <li>关闭其他可能占用麦克风的应用</li>
-                    </ul>
-                  </div>
-                </div>
+<!--                <div v-if="isAudioSupported" class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">-->
+<!--                  <div class="text-blue-800 text-sm space-y-2">-->
+<!--                    <p class="font-medium">📱 手机录音提示：</p>-->
+<!--                    <ul class="list-disc list-inside space-y-1 text-left">-->
+<!--                      <li>确保网站使用HTTPS协议</li>-->
+<!--                      <li>点击录音按钮时允许麦克风权限</li>-->
+<!--                      <li>如果权限被拒绝，点击地址栏的🔒或🎤图标重新授权</li>-->
+<!--                      <li>关闭其他可能占用麦克风的应用</li>-->
+<!--                    </ul>-->
+<!--                  </div>-->
+<!--                </div>-->
 
                 <!-- 录制按钮 - 支持重新录制 -->
                 <button

@@ -206,7 +206,7 @@ async def select_file(data: SelectFileModel, ip: str = Depends(ip_limit["error"]
         return APIResponse(code=404, detail=file_code)
 
     await update_file_usage(file_code)
-    
+
     # 为音频文件提供特殊的响应格式
     if file_code.is_audio():
         return APIResponse(
@@ -224,7 +224,39 @@ async def select_file(data: SelectFileModel, ip: str = Depends(ip_limit["error"]
                 ),
             }
         )
-    
+
+    # 为图片文件提供特殊的响应格式
+    if file_code.is_image():
+        return APIResponse(
+            detail={
+                "code": file_code.code,
+                "name": file_code.prefix + file_code.suffix,
+                "size": file_code.size,
+                "type": "image",
+                "text": (
+                    file_code.text
+                    if file_code.text is not None
+                    else await file_storage.get_file_url(file_code)
+                ),
+            }
+        )
+
+    # 为视频文件提供特殊的响应格式
+    if file_code.is_video():
+        return APIResponse(
+            detail={
+                "code": file_code.code,
+                "name": file_code.prefix + file_code.suffix,
+                "size": file_code.size,
+                "type": "video",
+                "text": (
+                    file_code.text
+                    if file_code.text is not None
+                    else await file_storage.get_file_url(file_code)
+                ),
+            }
+        )
+
     # 普通文件的原有逻辑
     return APIResponse(
         detail={

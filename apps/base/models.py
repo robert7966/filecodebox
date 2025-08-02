@@ -46,6 +46,32 @@ class FileCodes(models.Model):
         """检查是否为音频文件"""
         return self.file_type == "audio"
 
+    def is_image(self):
+        """检查是否为图片文件"""
+        if self.file_type == "image":
+            return True
+        # 通过文件扩展名检测
+        if self.suffix:
+            image_extensions = [
+                '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
+                '.svg', '.ico', '.tiff', '.tif', '.avif', '.heic', '.heif'
+            ]
+            return self.suffix.lower() in image_extensions
+        return False
+
+    def is_video(self):
+        """检查是否为视频文件"""
+        if self.file_type == "video":
+            return True
+        # 通过文件扩展名检测
+        if self.suffix:
+            video_extensions = [
+                '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv',
+                '.m4v', '.3gp', '.ogv', '.ts', '.mts', '.m2ts'
+            ]
+            return self.suffix.lower() in video_extensions
+        return False
+
     def get_duration(self):
         """获取音频时长"""
         if self.is_audio() and self.metadata:

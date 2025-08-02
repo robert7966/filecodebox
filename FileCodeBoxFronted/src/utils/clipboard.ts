@@ -41,7 +41,7 @@ export const copyToClipboard = async (
     }
     
     // 检查安全上下文，但允许localhost开发环境
-    if (!window.isSecureContext && !location.hostname.includes('localhost') && !location.hostname.includes('127.0.0.1')) {
+    if (!window.isSecureContext && !location.hostname.includes('localhost') && !location.hostname.includes('127.0.0.1') && !location.hostname.includes('192.168.1.102')) {
       if (showMsg) {
         alertStore.showAlert('需要HTTPS环境才能使用复制功能', 'error')
       }

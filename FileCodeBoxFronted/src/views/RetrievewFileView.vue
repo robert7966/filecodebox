@@ -241,7 +241,37 @@
               </a>
             </div>
 
-            <!-- 非音频文件的原有界面 -->
+            <!-- 图片文件专用预览界面 -->
+            <div v-else-if="selectedRecord.isImage" class="flex flex-col items-center py-4">
+              <h4 class="text-lg font-semibold mb-4" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
+                图片预览
+              </h4>
+              <button @click="openImageModal"
+                class="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition duration-300 transform hover:scale-105 shadow-lg">
+                🖼️ 查看图片
+              </button>
+              <a :href="getDownloadUrl(selectedRecord)" target="_blank" rel="noopener noreferrer"
+                class="mt-3 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition duration-300 text-sm">
+                下载图片
+              </a>
+            </div>
+
+            <!-- 视频文件专用预览界面 -->
+            <div v-else-if="selectedRecord.isVideo" class="flex flex-col items-center py-4">
+              <h4 class="text-lg font-semibold mb-4" :class="[isDarkMode ? 'text-white' : 'text-gray-800']">
+                视频预览
+              </h4>
+              <button @click="openVideoModal"
+                class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition duration-300 transform hover:scale-105 shadow-lg">
+                🎥 播放视频
+              </button>
+              <a :href="getDownloadUrl(selectedRecord)" target="_blank" rel="noopener noreferrer"
+                class="mt-3 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition duration-300 text-sm">
+                下载视频
+              </a>
+            </div>
+
+            <!-- 非音频、图片、视频文件的原有界面 -->
             <div v-else class="flex items-center">
               <DownloadIcon class="w-6 h-6 mr-3" :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']" />
               <p :class="[isDarkMode ? 'text-gray-300' : 'text-gray-800']">
@@ -322,6 +352,72 @@
                   : 'bg-gray-50'
               ]" 
               v-html="renderedContent">
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 图片弹窗模态框 -->
+    <transition name="fade">
+      <div v-if="showImageModal && selectedRecord" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+        <div class="relative max-w-[90vw] max-h-[90vh] flex flex-col image-modal">
+          <!-- 关闭按钮 -->
+          <button @click="closeImageModal"
+            class="absolute top-4 right-4 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition duration-300">
+            <XIcon class="w-6 h-6" />
+          </button>
+
+          <!-- 图片显示 -->
+          <img :src="getDownloadUrl(selectedRecord)"
+               :alt="selectedRecord.filename"
+               class="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+               @error="() => alertStore.showAlert('图片加载失败', 'error')" />
+
+          <!-- 图片信息 -->
+          <div class="mt-4 text-center">
+            <p class="text-white text-lg font-medium">{{ selectedRecord.filename }}</p>
+            <p class="text-gray-300 text-sm mt-1">{{ selectedRecord.size }}</p>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 视频弹窗模态框 -->
+    <transition name="fade">
+      <div v-if="showVideoModal && selectedRecord" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+        <div class="relative max-w-[90vw] max-h-[90vh] flex flex-col video-modal">
+          <!-- 关闭按钮 -->
+          <button @click="closeVideoModal"
+            class="absolute top-4 right-4 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition duration-300">
+            <XIcon class="w-6 h-6" />
+          </button>
+
+          <!-- 视频播放器 -->
+          <video ref="videoRef"
+                 :src="getDownloadUrl(selectedRecord)"
+                 class="max-w-full max-h-full rounded-lg shadow-2xl"
+                 controls
+                 @play="onVideoPlay"
+                 @pause="onVideoPause"
+                 @ended="onVideoEnded"
+                 @error="() => alertStore.showAlert('视频加载失败', 'error')">
+            您的浏览器不支持视频播放。
+          </video>
+
+          <!-- 视频信息和控制 -->
+          <div class="mt-4 text-center">
+            <p class="text-white text-lg font-medium">{{ selectedRecord.filename }}</p>
+            <p class="text-gray-300 text-sm mt-1">{{ selectedRecord.size }}</p>
+
+            <!-- 播放控制按钮 -->
+            <div class="mt-3 flex justify-center space-x-4">
+              <button @click="toggleVideoPlayback"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition duration-300 flex items-center">
+                <PlayIcon v-if="!isVideoPlaying" class="w-4 h-4 mr-2" />
+                <PauseIcon v-else class="w-4 h-4 mr-2" />
+                {{ isVideoPlaying ? '暂停' : '播放' }}
+              </button>
             </div>
           </div>
         </div>
@@ -441,7 +537,10 @@ const handleSubmit = async () => {
     if (res.code === 200) {
       if (res.detail) {
         const isFile = res.detail.text.startsWith('/share/download') || res.detail.name !== 'Text'
-        const isAudio = isFile && isAudioFile(res.detail.name)
+        // 优先使用后端返回的type字段，如果没有则使用前端检测
+        const isAudio = res.detail.type === 'audio' || (isFile && isAudioFile(res.detail.name))
+        const isImage = res.detail.type === 'image' || (isFile && isImageFile(res.detail.name))
+        const isVideo = res.detail.type === 'video' || (isFile && isVideoFile(res.detail.name))
         const newFileData = {
           id: Date.now(),
           code: res.detail.code,
@@ -451,6 +550,8 @@ const handleSubmit = async () => {
           content: isFile ? null : res.detail.text,
           date: new Date().toLocaleString(),
           isAudio: isAudio,
+          isImage: isImage,
+          isVideo: isVideo,
           // 🎯 保存后端返回的音频时长和格式信息
           duration: res.detail.duration || 0,
           format: res.detail.format || null
@@ -656,25 +757,31 @@ const duration = ref(0)
 const audioError = ref(false)
 const audioObjectUrl = ref(null)
 
+// 图片和视频弹窗相关状态
+const showImageModal = ref(false)
+const showVideoModal = ref(false)
+const videoRef = ref(null)
+const isVideoPlaying = ref(false)
+
 // 检查是否为音频文件
 const isAudioFile = (filename) => {
   if (!filename) return false
-  
+
   // 扩展音频格式支持，包括移动端常见格式
   const audioExtensions = [
-    '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', 
+    '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac',
     '.webm', '.mp4', '.3gp', '.amr', '.opus'
   ]
-  
+
   const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'))
   const isAudio = audioExtensions.includes(ext)
-  
+
   // 特殊处理：即使文件名没有音频扩展名，也要检查是否是音频内容
   // 例如录制的音频可能被命名为其他格式
   if (!isAudio && filename) {
     // 检查文件名中是否包含音频相关关键词
     const audioKeywords = ['录音', '音频', 'audio', 'voice', 'record', '🎵', '🎤']
-    const hasAudioKeyword = audioKeywords.some(keyword => 
+    const hasAudioKeyword = audioKeywords.some(keyword =>
       filename.toLowerCase().includes(keyword.toLowerCase())
     )
     if (hasAudioKeyword) {
@@ -682,10 +789,44 @@ const isAudioFile = (filename) => {
       return true
     }
   }
-  
+
   console.log(`🔍 文件格式检测: ${filename} -> ${isAudio ? '音频文件' : '非音频文件'}`)
   return isAudio
 }
+
+// 检查是否为图片文件
+const isImageFile = (filename) => {
+  if (!filename) return false
+
+  const imageExtensions = [
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
+    '.svg', '.ico', '.tiff', '.tif', '.avif', '.heic', '.heif'
+  ]
+
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'))
+  const isImage = imageExtensions.includes(ext)
+
+  console.log(`🖼️ 图片格式检测: ${filename} -> ${isImage ? '图片文件' : '非图片文件'}`)
+  return isImage
+}
+
+// 检查是否为视频文件
+const isVideoFile = (filename) => {
+  if (!filename) return false
+
+  const videoExtensions = [
+    '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv',
+    '.m4v', '.3gp', '.ogv', '.ts', '.mts', '.m2ts'
+  ]
+
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'))
+  const isVideo = videoExtensions.includes(ext)
+
+  console.log(`🎥 视频格式检测: ${filename} -> ${isVideo ? '视频文件' : '非视频文件'}`)
+  return isVideo
+}
+
+
 
 // 格式化时间显示
 const formatTime = (seconds) => {
@@ -1002,6 +1143,54 @@ const detectAudioDurationFallback = (audioUrl) => {
   tempAudio.preload = 'metadata'
   tempAudio.load()
 }
+
+// 图片弹窗控制
+const openImageModal = () => {
+  showImageModal.value = true
+}
+
+const closeImageModal = () => {
+  showImageModal.value = false
+}
+
+// 视频弹窗控制
+const openVideoModal = () => {
+  showVideoModal.value = true
+  isVideoPlaying.value = false
+}
+
+const closeVideoModal = () => {
+  showVideoModal.value = false
+  if (videoRef.value) {
+    videoRef.value.pause()
+    isVideoPlaying.value = false
+  }
+}
+
+const toggleVideoPlayback = () => {
+  if (!videoRef.value) return
+
+  if (isVideoPlaying.value) {
+    videoRef.value.pause()
+    isVideoPlaying.value = false
+  } else {
+    videoRef.value.play()
+    isVideoPlaying.value = true
+  }
+}
+
+// 视频事件处理
+const onVideoPlay = () => {
+  isVideoPlaying.value = true
+}
+
+const onVideoPause = () => {
+  isVideoPlaying.value = false
+}
+
+const onVideoEnded = () => {
+  isVideoPlaying.value = false
+}
 </script>
 
 <style scoped>
@@ -1121,5 +1310,28 @@ const detectAudioDurationFallback = (audioUrl) => {
 
 :deep([class*='dark']) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(75, 85, 99, 0.5);
+}
+
+/* 图片和视频弹窗样式 */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
+/* 图片弹窗特殊样式 */
+.image-modal img {
+  transition: transform 0.3s ease;
+}
+
+.image-modal img:hover {
+  transform: scale(1.02);
+}
+
+/* 视频弹窗特殊样式 */
+.video-modal video {
+  background-color: #000;
 }
 </style>

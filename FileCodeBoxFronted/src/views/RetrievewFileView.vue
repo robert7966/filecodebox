@@ -538,9 +538,10 @@ const handleSubmit = async () => {
       if (res.detail) {
         const isFile = res.detail.text.startsWith('/share/download') || res.detail.name !== 'Text'
         // 优先使用后端返回的type字段，如果没有则使用前端检测
-        const isAudio = res.detail.type === 'audio' || (isFile && isAudioFile(res.detail.name))
-        const isImage = res.detail.type === 'image' || (isFile && isImageFile(res.detail.name))
+        // 注意：视频检测要在音频检测之前，避免mp4等格式被误识别
         const isVideo = res.detail.type === 'video' || (isFile && isVideoFile(res.detail.name))
+        const isImage = res.detail.type === 'image' || (isFile && isImageFile(res.detail.name))
+        const isAudio = res.detail.type === 'audio' || (isFile && !isVideo && !isImage && isAudioFile(res.detail.name))
         const newFileData = {
           id: Date.now(),
           code: res.detail.code,
@@ -613,11 +614,26 @@ const handleSubmit = async () => {
               }, 3000) // 缩短到3秒
             }
           }, 100)
+        } else if (isImage) {
+          // 图片文件自动展示
+          setTimeout(() => {
+            console.log('🖼️ 自动展示图片:', newFileData.filename)
+            openImageModal()
+          }, 500) // 延迟500ms确保DOM更新完成
+        } else if (isVideo) {
+          // 视频文件自动展示（仅限mp4格式）
+          const isMP4 = newFileData.filename.toLowerCase().endsWith('.mp4')
+          if (isMP4) {
+            setTimeout(() => {
+              console.log('🎥 自动播放MP4视频:', newFileData.filename)
+              openVideoModal()
+            }, 500) // 延迟500ms确保DOM更新完成
+          }
         } else if (!isFile) {
           // 文本内容显示预览
           showPreview.value = true
         }
-        
+
         alertStore.showAlert('文件获取成功', 'success')
       } else {
         alertStore.showAlert('无效的取件码', 'error')
@@ -646,28 +662,28 @@ const formatFileSize = (bytes) => {
 const viewDetails = (record) => {
   resetAudioState()
   selectedRecord.value = record
-  
+
   // 如果是音频文件，延迟加载音频
   if (record.isAudio) {
     setTimeout(async () => {
       if (audioRef.value) {
         console.log('🎵 重新加载音频文件:', record.filename)
         console.log('🔗 音频URL:', getDownloadUrl(record))
-        
+
         // 添加临时事件监听器检测加载状态
         let metadataLoaded = false
         const tempMetadataHandler = () => {
           metadataLoaded = true
           console.log('✅ 重新加载元数据成功')
         }
-        
+
         audioRef.value.addEventListener('loadedmetadata', tempMetadataHandler, { once: true })
         audioRef.value.load()
-        
+
         // 较短时间后检查是否需要使用fetch方案
         setTimeout(async () => {
           audioRef.value?.removeEventListener('loadedmetadata', tempMetadataHandler)
-          
+
           if (!metadataLoaded || audioError.value || duration.value === 0) {
             console.log('⚠️ 重新加载失败，切换到fetch方案')
             console.log('状态: metadataLoaded=', metadataLoaded, 'audioError=', audioError.value, 'duration=', duration.value)
@@ -676,6 +692,21 @@ const viewDetails = (record) => {
         }, 3000) // 缩短到3秒
       }
     }, 100)
+  } else if (record.isImage) {
+    // 图片文件自动展示
+    setTimeout(() => {
+      console.log('🖼️ 自动展示图片:', record.filename)
+      openImageModal()
+    }, 300)
+  } else if (record.isVideo) {
+    // 视频文件自动展示（仅限mp4格式）
+    const isMP4 = record.filename.toLowerCase().endsWith('.mp4')
+    if (isMP4) {
+      setTimeout(() => {
+        console.log('🎥 自动播放MP4视频:', record.filename)
+        openVideoModal()
+      }, 300)
+    }
   }
 }
 
@@ -767,10 +798,10 @@ const isVideoPlaying = ref(false)
 const isAudioFile = (filename) => {
   if (!filename) return false
 
-  // 扩展音频格式支持，包括移动端常见格式
+  // 纯音频格式，移除mp4和3gp（这些主要是视频格式）
   const audioExtensions = [
     '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac',
-    '.webm', '.mp4', '.3gp', '.amr', '.opus'
+    '.amr', '.opus', '.wma'
   ]
 
   const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'))

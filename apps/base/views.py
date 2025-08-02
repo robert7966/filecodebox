@@ -16,6 +16,26 @@ from core.utils import get_select_token
 share_api = APIRouter(prefix="/share", tags=["分享"])
 
 
+def detect_file_type(suffix: str) -> str:
+    """根据文件扩展名检测文件类型"""
+    if not suffix:
+        return "file"
+
+    suffix_lower = suffix.lower()
+
+    # 图片文件
+    if suffix_lower in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico', '.tiff', '.tif', '.avif', '.heic', '.heif']:
+        return "image"
+    # 视频文件
+    elif suffix_lower in ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv', '.m4v', '.3gp', '.ogv', '.ts', '.mts', '.m2ts']:
+        return "video"
+    # 音频文件（排除视频格式）
+    elif suffix_lower in ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.amr', '.opus', '.wma']:
+        return "audio"
+
+    return "file"
+
+
 async def validate_file_size(file: UploadFile, max_size: int):
     if file.size > max_size:
         max_size_mb = max_size / (1024 * 1024)
@@ -81,6 +101,10 @@ async def share_file(
     path, suffix, prefix, uuid_file_name, save_path = await get_file_path_name(file)
     file_storage: FileStorageInterface = storages[settings.file_storage]()
     await file_storage.save_file(file, save_path)
+
+    # 根据文件扩展名自动检测文件类型
+    file_type = detect_file_type(suffix)
+
     await create_file_code(
         code=code,
         prefix=prefix,
@@ -91,6 +115,7 @@ async def share_file(
         expired_at=expired_at,
         expired_count=expired_count,
         used_count=used_count,
+        file_type=file_type,
     )
     ip_limit["upload"].add_ip(ip)
     return APIResponse(detail={"code": code, "name": file.filename})
@@ -398,6 +423,10 @@ async def complete_upload(upload_id: str, data: CompleteUploadModel, ip: str = D
     await storage.merge_chunks(upload_id, chunk_info, save_path)
     # 创建文件记录
     expired_at, expired_count, used_count, code = await get_expire_info(data.expire_value, data.expire_style, data.code)
+
+    # 根据文件扩展名自动检测文件类型
+    file_type = detect_file_type(suffix)
+
     await FileCodes.create(
         code=code,
         file_hash=chunk_info.chunk_hash,
@@ -410,7 +439,8 @@ async def complete_upload(upload_id: str, data: CompleteUploadModel, ip: str = D
         file_path=path,
         uuid_file_name=f"{prefix}{suffix}",
         prefix=prefix,
-        suffix=suffix
+        suffix=suffix,
+        file_type=file_type,
     )
     # 清理临时文件
     await storage.clean_chunks(upload_id, save_path)

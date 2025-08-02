@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片弹窗尺寸优化测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-title {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .feature-list li:before {
+            content: "✅ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+        .success {
+            background: #d4edda;
+            padding: 15px;
+            border-left: 4px solid #28a745;
+            margin: 15px 0;
+        }
+        .mobile-demo {
+            background: #e3f2fd;
+            padding: 15px;
+            border-left: 4px solid #2196f3;
+            margin: 15px 0;
+        }
+        .desktop-demo {
+            background: #f3e5f5;
+            padding: 15px;
+            border-left: 4px solid #9c27b0;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>📱 图片弹窗尺寸优化完成</h1>
+    
+    <div class="success">
+        <h3>✅ 优化完成！</h3>
+        <p>已成功优化图片弹窗的显示尺寸，现在在手机端和桌面端都有更好的显示效果。</p>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">📱 移动端优化</h2>
+        <div class="mobile-demo">
+            <h4>🔧 移动端改进点</h4>
+            <ul class="feature-list">
+                <li>图片最小高度提升到70vh（原来可能太小）</li>
+                <li>图片最大高度提升到90vh（充分利用屏幕空间）</li>
+                <li>图片最小宽度设置为90vw（确保足够大）</li>
+                <li>图片最大宽度设置为95vw（避免超出屏幕）</li>
+                <li>弹窗容器占满全屏（100vw x 100vh）</li>
+                <li>关闭按钮增大到44x44px（更易点击）</li>
+                <li>图片信息添加毛玻璃背景效果</li>
+            </ul>
+        </div>
+        
+        <div class="code-block">
+/* 移动端样式 (max-width: 640px) */
+.mobile-image {
+    min-height: 70vh;    /* 最小高度70% */
+    max-height: 90vh;    /* 最大高度90% */
+    min-width: 90vw;     /* 最小宽度90% */
+    max-width: 95vw;     /* 最大宽度95% */
+    object-fit: contain; /* 保持比例 */
+    object-position: center;
+}
+
+.image-modal {
+    width: 100vw;        /* 全屏宽度 */
+    height: 100vh;       /* 全屏高度 */
+}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">🖥️ 桌面端优化</h2>
+        <div class="desktop-demo">
+            <h4>🔧 桌面端改进点</h4>
+            <ul class="feature-list">
+                <li>中等屏幕：最大85vw x 80vh，最小400x300px</li>
+                <li>大屏幕：最大80vw x 75vh，最小500x400px</li>
+                <li>保持原有的悬停放大效果</li>
+                <li>确保在不同分辨率下都有良好显示</li>
+            </ul>
+        </div>
+        
+        <div class="code-block">
+/* 桌面端样式 (min-width: 641px) */
+.mobile-image {
+    max-width: 85vw;
+    max-height: 80vh;
+    min-width: 400px;    /* 最小宽度 */
+    min-height: 300px;   /* 最小高度 */
+}
+
+/* 大屏幕样式 (min-width: 1024px) */
+.mobile-image {
+    max-width: 80vw;
+    max-height: 75vh;
+    min-width: 500px;    /* 更大的最小尺寸 */
+    min-height: 400px;
+}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">🎯 响应式设计特点</h2>
+        <ul class="feature-list">
+            <li><strong>移动端优先</strong>：充分利用小屏幕空间</li>
+            <li><strong>触摸友好</strong>：关闭按钮增大，易于点击</li>
+            <li><strong>自适应布局</strong>：根据屏幕尺寸自动调整</li>
+            <li><strong>保持比例</strong>：使用object-fit: contain保持图片比例</li>
+            <li><strong>居中显示</strong>：图片始终在屏幕中央</li>
+            <li><strong>信息可见</strong>：文件信息在移动端有背景，确保可读性</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">📏 尺寸对比</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <thead>
+                <tr style="background: #f8f9fa;">
+                    <th style="border: 1px solid #ddd; padding: 12px;">设备类型</th>
+                    <th style="border: 1px solid #ddd; padding: 12px;">屏幕断点</th>
+                    <th style="border: 1px solid #ddd; padding: 12px;">图片最大尺寸</th>
+                    <th style="border: 1px solid #ddd; padding: 12px;">图片最小尺寸</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 12px;">📱 手机</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">≤ 640px</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">95vw × 90vh</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">90vw × 70vh</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 12px;">💻 平板/小桌面</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">641px - 1023px</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">85vw × 80vh</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">400px × 300px</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 12px;">🖥️ 大屏幕</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">≥ 1024px</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">80vw × 75vh</td>
+                    <td style="border: 1px solid #ddd; padding: 12px;">500px × 400px</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="highlight">
+        <h3>⚠️ 重要改进</h3>
+        <ul>
+            <li><strong>移动端显示增大</strong>：从之前可能较小的显示提升到90vw×90vh</li>
+            <li><strong>最小尺寸保证</strong>：确保图片在任何设备上都有合适的最小显示尺寸</li>
+            <li><strong>全屏体验</strong>：移动端弹窗占满全屏，提供沉浸式体验</li>
+            <li><strong>触摸优化</strong>：关闭按钮和交互元素针对触摸设备优化</li>
+        </ul>
+    </div>
+
+    <div class="success">
+        <h3>🎊 优化完成</h3>
+        <p>图片弹窗现在在手机端显示更大，桌面端保持合适尺寸，为用户提供更好的图片查看体验！</p>
+    </div>
+</body>
+</html>

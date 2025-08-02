@@ -360,23 +360,23 @@
 
     <!-- 图片弹窗模态框 -->
     <transition name="fade">
-      <div v-if="showImageModal && selectedRecord" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-        <div class="relative max-w-[90vw] max-h-[90vh] flex flex-col image-modal">
+      <div v-if="showImageModal && selectedRecord" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-2 sm:p-4">
+        <div class="relative w-full h-full sm:max-w-[90vw] sm:max-h-[90vh] flex flex-col image-modal">
           <!-- 关闭按钮 -->
           <button @click="closeImageModal"
-            class="absolute top-4 right-4 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition duration-300">
+            class="absolute top-2 right-2 sm:top-4 sm:right-4 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition duration-300">
             <XIcon class="w-6 h-6" />
           </button>
 
           <!-- 图片显示 -->
           <img :src="getDownloadUrl(selectedRecord)"
                :alt="selectedRecord.filename"
-               class="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+               class="w-full h-full sm:max-w-full sm:max-h-full object-contain rounded-lg shadow-2xl mobile-image"
                @error="() => alertStore.showAlert('图片加载失败', 'error')" />
 
           <!-- 图片信息 -->
-          <div class="mt-4 text-center">
-            <p class="text-white text-lg font-medium">{{ selectedRecord.filename }}</p>
+          <div class="absolute bottom-2 left-2 right-2 sm:relative sm:mt-4 text-center bg-black bg-opacity-50 sm:bg-transparent rounded p-2 sm:p-0">
+            <p class="text-white text-base sm:text-lg font-medium">{{ selectedRecord.filename }}</p>
             <p class="text-gray-300 text-sm mt-1">{{ selectedRecord.size }}</p>
           </div>
         </div>
@@ -1359,6 +1359,65 @@ const onVideoEnded = () => {
 
 .image-modal img:hover {
   transform: scale(1.02);
+}
+
+/* 移动端图片样式优化 */
+@media (max-width: 640px) {
+  .mobile-image {
+    min-height: 70vh;
+    max-height: 90vh;
+    min-width: 90vw;
+    max-width: 95vw;
+    object-fit: contain;
+    object-position: center;
+  }
+
+  .image-modal {
+    padding: 0;
+    margin: 0;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* 移动端图片信息样式 */
+  .image-modal .absolute {
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+  }
+
+  /* 移动端关闭按钮样式 */
+  .image-modal button {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+}
+
+/* 桌面端图片样式 */
+@media (min-width: 641px) {
+  .mobile-image {
+    max-width: 85vw;
+    max-height: 80vh;
+    min-width: 400px;
+    min-height: 300px;
+  }
+
+  .image-modal {
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+}
+
+/* 大屏幕优化 */
+@media (min-width: 1024px) {
+  .mobile-image {
+    max-width: 80vw;
+    max-height: 75vh;
+    min-width: 500px;
+    min-height: 400px;
+  }
 }
 
 /* 视频弹窗特殊样式 */

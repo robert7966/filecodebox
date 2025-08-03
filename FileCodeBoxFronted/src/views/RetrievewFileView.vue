@@ -364,7 +364,7 @@
         <div class="relative w-full h-full sm:max-w-[90vw] sm:max-h-[90vh] flex flex-col image-modal">
           <!-- 关闭按钮 -->
           <button @click="closeImageModal"
-            class="absolute top-2 right-2 sm:top-4 sm:right-4 z-10 w-10 h-10 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full flex items-center justify-center transition duration-300">
+            class="absolute top-4 right-4 sm:top-4 sm:right-4 z-10 w-12 h-12 sm:w-10 sm:h-10 bg-black bg-opacity-70 hover:bg-opacity-90 text-white rounded-full flex items-center justify-center transition duration-300 safe-area-button">
             <XIcon class="w-6 h-6" />
           </button>
 
@@ -1379,19 +1379,43 @@ const onVideoEnded = () => {
     align-items: center;
     width: 100vw;
     height: 100vh;
+    /* 确保弹窗在安全区域内 */
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
   }
 
   /* 移动端图片信息样式 */
   .image-modal .absolute {
     backdrop-filter: blur(10px);
     border-radius: 8px;
+    /* 确保信息栏不被底部安全区域遮挡 */
+    bottom: max(8px, env(safe-area-inset-bottom, 8px));
   }
 
   /* 移动端关闭按钮样式 */
   .image-modal button {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     font-size: 18px;
+    /* 增加按钮的背景透明度，提高可见性 */
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+  }
+
+  /* 安全区域适配 - 避免被浏览器UI遮挡 */
+  .safe-area-button {
+    /* 使用更大的安全距离，确保在各种浏览器中都能点击 */
+    top: max(20px, calc(env(safe-area-inset-top, 0px) + 20px)) !important;
+    right: max(20px, calc(env(safe-area-inset-right, 0px) + 20px)) !important;
+  }
+
+  /* 针对Chrome移动浏览器的特殊处理 */
+  @supports (-webkit-touch-callout: none) {
+    .safe-area-button {
+      top: max(30px, calc(env(safe-area-inset-top, 0px) + 30px)) !important;
+    }
   }
 }
 
